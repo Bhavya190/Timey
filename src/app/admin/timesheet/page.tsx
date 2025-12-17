@@ -17,15 +17,9 @@ import {
   Briefcase,
 } from "lucide-react";
 
-// If you want real XLSX/PDF, install and import these and replace stubs below:
-// import * as XLSX from "xlsx";
-// import jsPDF from "jspdf";
-// import "jspdf-autotable";
-
 const employeesById = Object.fromEntries(demoUsers.map((u) => [u.id, u]));
 const projectsById = Object.fromEntries(initialProjects.map((p) => [p.id, p]));
 
-// Build a pure local date string YYYY-MM-DD
 function toLocalISODate(d: Date) {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -33,14 +27,13 @@ function toLocalISODate(d: Date) {
   return `${year}-${month}-${day}`;
 }
 
-// Given any anchor date, compute Monday..Sunday for that week
 function getWeekRangeFromAnchor(anchor: Date): {
   days: string[];
   startISO: string;
   endISO: string;
 } {
   const base = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
-  const day = base.getDay(); // 0 Sun .. 6 Sat
+  const day = base.getDay();
   const diffToMonday = (day + 6) % 7;
   const monday = new Date(
     base.getFullYear(),
@@ -90,7 +83,6 @@ function formatDayName(iso: string) {
 type DateRangeFilter = "today" | "this_week" | "this_month" | "custom";
 
 export default function AdminTimesheetPage() {
-  // Anchor date controls which week is shown (start at today)
   const [currentAnchor, setCurrentAnchor] = useState<Date>(new Date());
 
   const { days, startISO, endISO } = useMemo(
@@ -101,17 +93,15 @@ export default function AdminTimesheetPage() {
 
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
 
-  // Filters
   const [projectFilter, setProjectFilter] = useState<number | "all">("all");
   const [employeeFilter, setEmployeeFilter] = useState<number | "all">("all");
-  const [dateFilter, setDateFilter] = useState<string>(""); // single exact date
+  const [dateFilter, setDateFilter] = useState<string>("");
   const [dateRangeFilter, setDateRangeFilter] =
     useState<DateRangeFilter>("this_week");
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
   const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | "pdf">("csv");
 
-  // Compute active date range from dateRangeFilter
   const { rangeStart, rangeEnd } = useMemo(() => {
     const now = new Date();
     if (dateRangeFilter === "today") {
@@ -128,38 +118,35 @@ export default function AdminTimesheetPage() {
     if (dateRangeFilter === "custom" && customStart && customEnd) {
       return { rangeStart: customStart, rangeEnd: customEnd };
     }
-    // default: this_week uses weekly range from anchor
     return { rangeStart: startISO, rangeEnd: endISO };
   }, [dateRangeFilter, customStart, customEnd, startISO, endISO]);
 
-  // Base tasks for current range (not only anchor week now)
   const rawRangeTasks: Task[] = useMemo(
     () => tasks.filter((t) => t.date >= rangeStart && t.date <= rangeEnd),
     [tasks, rangeStart, rangeEnd]
   );
 
-  // Apply filters
-  const rangeTasks: Task[] = useMemo(() => {
-    return rawRangeTasks.filter((t) => {
-      if (projectFilter !== "all" && t.projectId !== projectFilter) return false;
-      if (
-        employeeFilter !== "all" &&
-        !t.assigneeIds.includes(employeeFilter)
-      ) {
-        return false;
-      }
-      if (dateFilter && t.date !== dateFilter) return false;
-      return true;
-    });
-  }, [rawRangeTasks, projectFilter, employeeFilter, dateFilter]);
+  const rangeTasks: Task[] = useMemo(
+    () =>
+      rawRangeTasks.filter((t) => {
+        if (projectFilter !== "all" && t.projectId !== projectFilter) return false;
+        if (
+          employeeFilter !== "all" &&
+          !t.assigneeIds.includes(employeeFilter)
+        ) {
+          return false;
+        }
+        if (dateFilter && t.date !== dateFilter) return false;
+        return true;
+      }),
+    [rawRangeTasks, projectFilter, employeeFilter, dateFilter]
+  );
 
-  // For grid, still show the week based on anchor, but data may come from wider range
   const weekTasks = useMemo(
     () => rangeTasks.filter((t) => t.date >= startISO && t.date <= endISO),
     [rangeTasks, startISO, endISO]
   );
 
-  // Hours per task per day (for visible week grid)
   const hoursByTaskDay: Record<number, Record<string, number>> = {};
   for (const t of weekTasks) {
     if (!hoursByTaskDay[t.id]) hoursByTaskDay[t.id] = {};
@@ -191,25 +178,26 @@ export default function AdminTimesheetPage() {
     }, {})
   );
 
-  // Common data used for all exports (ONLY filtered data)
-  const exportRows = useMemo(() => {
-    return rangeTasks.map((t) => {
-      const assignees = t.assigneeIds
-        .map((id) => employeesById[id]?.name)
-        .filter(Boolean)
-        .join(", ");
-      return {
-        Date: t.date,
-        Project: t.projectName,
-        Task: t.name,
-        Status: t.status,
-        Assignees: assignees,
-        WorkedHours: t.workedHours.toFixed(2),
-        BillingType: t.billingType,
-        Description: t.description ?? "",
-      };
-    });
-  }, [rangeTasks]);
+  const exportRows = useMemo(
+    () =>
+      rangeTasks.map((t) => {
+        const assignees = t.assigneeIds
+          .map((id) => employeesById[id]?.name)
+          .filter(Boolean)
+          .join(", ");
+        return {
+          Date: t.date,
+          Project: t.projectName,
+          Task: t.name,
+          Status: t.status,
+          Assignees: assignees,
+          WorkedHours: t.workedHours.toFixed(2),
+          BillingType: t.billingType,
+          Description: t.description ?? "",
+        };
+      }),
+    [rangeTasks]
+  );
 
   const handleExportCSV = () => {
     if (exportRows.length === 0) {
@@ -238,12 +226,6 @@ export default function AdminTimesheetPage() {
       alert("No data to export for current filters.");
       return;
     }
-    // Stub: plug SheetJS here.
-    // Example:
-    // const ws = XLSX.utils.json_to_sheet(exportRows);
-    // const wb = XLSX.utils.book_new();
-    // XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
-    // XLSX.writeFile(wb, `timesheet_${rangeStart}_${rangeEnd}.xlsx`);
     alert("XLSX export: connect SheetJS here using exportRows.");
   };
 
@@ -252,13 +234,6 @@ export default function AdminTimesheetPage() {
       alert("No data to export for current filters.");
       return;
     }
-    // Stub: plug jsPDF + autotable here.
-    // Example:
-    // const doc = new jsPDF();
-    // const headers = [Object.keys(exportRows[0])];
-    // const data = exportRows.map(r => Object.values(r));
-    // (doc as any).autoTable({ head: headers, body: data });
-    // doc.save(`timesheet_${rangeStart}_${rangeEnd}.pdf`);
     alert("PDF export: connect jsPDF + autotable here using exportRows.");
   };
 
@@ -286,8 +261,7 @@ export default function AdminTimesheetPage() {
 
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
   const [editedHours, setEditedHours] = useState<string>("0");
-  const [editedDescription, setEditedDescription] =
-    useState<string>("");
+  const [editedDescription, setEditedDescription] = useState<string>("");
 
   const openEditFor = (task: Task, date: string) => {
     setEditTarget({ taskId: task.id, date });
@@ -367,28 +341,28 @@ export default function AdminTimesheetPage() {
 
   return (
     <main className="space-y-4">
-      {/* Header with simpler week navigation */}
+      {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
             <CalendarRange className="h-5 w-5" />
           </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
               Timesheet
             </h1>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted">
               Time entries with flexible filters and export options.
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-1.5 text-xs text-slate-100">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground">
             <button
               type="button"
               onClick={goPrevWeek}
-              className="px-1.5 py-0.5 rounded-lg hover:bg-slate-800"
+              className="px-1.5 py-0.5 rounded-lg hover:bg-background/80"
             >
               ◀
             </button>
@@ -399,7 +373,7 @@ export default function AdminTimesheetPage() {
             <button
               type="button"
               onClick={goNextWeek}
-              className="px-1.5 py-0.5 rounded-lg hover:bg-slate-800"
+              className="px-1.5 py-0.5 rounded-lg hover:bg-background/80"
             >
               ▶
             </button>
@@ -407,12 +381,12 @@ export default function AdminTimesheetPage() {
         </div>
       </div>
 
-      {/* Filters section */}
-      <section className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs space-y-3">
-        <div className="flex items-center gap-2 text-slate-300">
-          <Filter className="h-4 w-4 text-emerald-400" />
+      {/* Filters */}
+      <section className="rounded-2xl border border-border bg-card px-4 py-3 text-xs space-y-3">
+        <div className="flex items-center gap-2 text-foreground">
+          <Filter className="h-4 w-4 text-emerald-500" />
           <span className="font-semibold text-sm">Filters</span>
-          <span className="text-[11px] text-slate-500">
+          <span className="text-[11px] text-muted">
             Narrow down by project, employee, and date range before exporting.
           </span>
         </div>
@@ -420,22 +394,18 @@ export default function AdminTimesheetPage() {
         <div className="grid gap-3 sm:grid-cols-4">
           {/* Project filter */}
           <div className="space-y-1">
-            <label className="flex items-center gap-1 text-[11px] font-medium text-slate-300">
-              <Briefcase className="h-3.5 w-3.5 text-emerald-400" />
+            <label className="flex items-center gap-1 text-[11px] font-medium text-foreground">
+              <Briefcase className="h-3.5 w-3.5 text-emerald-500" />
               Project
             </label>
             <select
               value={projectFilter === "all" ? "" : String(projectFilter)}
               onChange={(e) =>
                 setProjectFilter(
-                  e.target.value === " "
-                    ? "all"
-                    : e.target.value === ""
-                    ? "all"
-                    : Number(e.target.value)
+                  e.target.value === "" ? "all" : Number(e.target.value)
                 )
               }
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             >
               <option value="">All projects</option>
               {projectOptions.map((p) => (
@@ -448,20 +418,18 @@ export default function AdminTimesheetPage() {
 
           {/* Employee filter */}
           <div className="space-y-1">
-            <label className="flex items-center gap-1 text-[11px] font-medium text-slate-300">
-              <Users className="h-3.5 w-3.5 text-emerald-400" />
+            <label className="flex items-center gap-1 text-[11px] font-medium text-foreground">
+              <Users className="h-3.5 w-3.5 text-emerald-500" />
               Employee
             </label>
             <select
               value={employeeFilter === "all" ? "" : String(employeeFilter)}
               onChange={(e) =>
                 setEmployeeFilter(
-                  e.target.value === ""
-                    ? "all"
-                    : Number(e.target.value)
+                  e.target.value === "" ? "all" : Number(e.target.value)
                 )
               }
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             >
               <option value="">All employees</option>
               {employeeOptions.map((emp) => (
@@ -474,8 +442,8 @@ export default function AdminTimesheetPage() {
 
           {/* Date range filter */}
           <div className="space-y-1">
-            <label className="flex items-center gap-1 text-[11px] font-medium text-slate-300">
-              <CalendarRange className="h-3.5 w-3.5 text-emerald-400" />
+            <label className="flex items-center gap-1 text-[11px] font-medium text-foreground">
+              <CalendarRange className="h-3.5 w-3.5 text-emerald-500" />
               Date range
             </label>
             <select
@@ -483,7 +451,7 @@ export default function AdminTimesheetPage() {
               onChange={(e) =>
                 setDateRangeFilter(e.target.value as DateRangeFilter)
               }
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             >
               <option value="today">Today</option>
               <option value="this_week">This week</option>
@@ -492,17 +460,17 @@ export default function AdminTimesheetPage() {
             </select>
           </div>
 
-          {/* Single exact date (optional) */}
+          {/* Exact date */}
           <div className="space-y-1">
-            <label className="flex items-center gap-1 text-[11px] font-medium text-slate-300">
-              <CalendarRange className="h-3.5 w-3.5 text-emerald-400" />
+            <label className="flex items-center gap-1 text-[11px] font-medium text-foreground">
+              <CalendarRange className="h-3.5 w-3.5 text-emerald-500" />
               Exact date (optional)
             </label>
             <input
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
           </div>
         </div>
@@ -510,25 +478,25 @@ export default function AdminTimesheetPage() {
         {dateRangeFilter === "custom" && (
           <div className="grid gap-3 sm:grid-cols-2 pt-2">
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-slate-300">
+              <label className="text-[11px] font-medium text-foreground">
                 From
               </label>
               <input
                 type="date"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-slate-300">
+              <label className="text-[11px] font-medium text-foreground">
                 To
               </label>
               <input
                 type="date"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
               />
             </div>
           </div>
@@ -550,58 +518,58 @@ export default function AdminTimesheetPage() {
               setCustomStart("");
               setCustomEnd("");
             }}
-            className="mt-1 text-[11px] text-emerald-400 hover:underline"
+            className="mt-1 text-[11px] text-emerald-500 hover:underline"
           >
             Clear filters
           </button>
         )}
       </section>
 
-      {/* Stats for current filtered range */}
+      {/* Stats */}
       <section className="grid gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs flex items-center gap-3">
-          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-emerald-400">
+        <div className="rounded-xl border border-border bg-card px-4 py-3 text-xs flex items-center gap-3">
+          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background text-emerald-500">
             <Clock4 className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-slate-400 mb-1">Worked Today</p>
-            <p className="text-xl font-semibold text-slate-100">
+            <p className="text-muted mb-1">Worked Today</p>
+            <p className="text-xl font-semibold">
               {totalWorkedToday.toFixed(2)} h
             </p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs flex items-center gap-3">
-          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-emerald-400">
+        <div className="rounded-xl border border-border bg-card px-4 py-3 text-xs flex items-center gap-3">
+          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background text-emerald-500">
             <Timer className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-slate-400 mb-1">Total Range Hours</p>
-            <p className="text-xl font-semibold text-slate-100">
+            <p className="text-muted mb-1">Total Range Hours</p>
+            <p className="text-xl font-semibold">
               {totalWorkedRange.toFixed(2)} h
             </p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs flex items-center gap-3">
-          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-emerald-400">
+        <div className="rounded-xl border border-border bg-card px-4 py-3 text-xs flex items-center gap-3">
+          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background text-emerald-500">
             <BadgeDollarSign className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-slate-400 mb-1">Billable Hours</p>
-            <p className="text-xl font-semibold text-slate-100">
+            <p className="text-muted mb-1">Billable Hours</p>
+            <p className="text-xl font-semibold">
               {billableHours.toFixed(2)} h
             </p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs flex items-center gap-3">
-          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-slate-300">
+        <div className="rounded-xl border border-border bg-card px-4 py-3 text-xs flex items-center gap-3">
+          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background text-muted">
             <BadgeDollarSign className="h-4 w-4 opacity-60" />
           </div>
           <div>
-            <p className="text-slate-400 mb-1">Non‑Billable Hours</p>
-            <p className="text-xl font-semibold text-slate-100">
+            <p className="text-muted mb-1">Non‑Billable Hours</p>
+            <p className="text-xl font-semibold">
               {nonBillableHours.toFixed(2)} h
             </p>
           </div>
@@ -610,14 +578,14 @@ export default function AdminTimesheetPage() {
 
       {/* Export */}
       <section className="flex flex-wrap gap-2 items-center">
-        <div className="flex items-center gap-2 text-xs text-slate-300">
+        <div className="flex items-center gap-2 text-xs text-foreground">
           <span>Export as</span>
           <select
             value={exportFormat}
             onChange={(e) =>
               setExportFormat(e.target.value as "csv" | "xlsx" | "pdf")
             }
-            className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+            className="rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
           >
             <option value="csv">CSV</option>
             <option value="xlsx">XLSX</option>
@@ -637,17 +605,17 @@ export default function AdminTimesheetPage() {
           <span>Export filtered data</span>
         </button>
 
-        <span className="text-[11px] text-slate-500">
+        <span className="text-[11px] text-muted">
           {exportRows.length} rows will be exported based on current filters and
           date range.
         </span>
       </section>
 
-      {/* Weekly grid (still showing anchor week) */}
-      <section className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
+      {/* Weekly grid with totals footer */}
+      <section className="rounded-2xl border border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs sm:text-sm">
-            <thead className="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+            <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
                 <th className="px-4 py-3 font-medium">Project – Task</th>
                 {days.map((iso) => (
@@ -656,7 +624,7 @@ export default function AdminTimesheetPage() {
                     className="px-3 py-3 font-medium text-center"
                   >
                     <div>{formatDayName(iso)}</div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-[11px] text-muted">
                       {formatDateLabel(iso)}
                     </div>
                   </th>
@@ -664,18 +632,18 @@ export default function AdminTimesheetPage() {
                 <th className="px-4 py-3 font-medium text-right">Total</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-950/40">
+            <tbody className="divide-y divide-border bg-card">
               {tasksById.map((task) => (
                 <tr key={task.id}>
                   <td className="px-4 py-3">
-                    <p className="text-slate-100">{task.name}</p>
-                    <p className="text-[11px] text-slate-500 inline-flex items-center gap-1 flex-wrap">
-                      <span>{task.projectName}</span>
-                      <span className="h-1 w-1 rounded-full bg-slate-600" />
+                    <p className="text-foreground">{task.name}</p>
+                    <p className="text-[11px] text-muted inline-flex items-center gap-1 flex-wrap">
+                      <span>{projectsById[task.projectId]?.name ?? task.projectName}</span>
+                      <span className="h-1 w-1 rounded-full bg-border" />
                       <span>{task.status}</span>
-                      <span className="h-1 w-1 rounded-full bg-slate-600" />
+                      <span className="h-1 w-1 rounded-full bg-border" />
                       <span>{formatAssignees(task.assigneeIds)}</span>
-                      <span className="h-1 w-1 rounded-full bg-slate-600" />
+                      <span className="h-1 w-1 rounded-full bg-border" />
                       <span>
                         {task.billingType === "billable"
                           ? "Billable"
@@ -689,9 +657,9 @@ export default function AdminTimesheetPage() {
                     return (
                       <td
                         key={iso}
-                        className={`px-3 py-3 text-center text-slate-300 ${
+                        className={`px-3 py-3 text-center text-foreground ${
                           canEdit
-                            ? "cursor-pointer hover:bg-slate-900/70"
+                            ? "cursor-pointer hover:bg-background/70"
                             : ""
                         }`}
                         onClick={() => canEdit && openEditFor(task, iso)}
@@ -700,7 +668,7 @@ export default function AdminTimesheetPage() {
                       </td>
                     );
                   })}
-                  <td className="px-4 py-3 text-right text-slate-100">
+                  <td className="px-4 py-3 text-right text-foreground">
                     {Object.values(hoursByTaskDay[task.id] || {})
                       .reduce((sum, h) => sum + h, 0)
                       .toFixed(2)}
@@ -712,29 +680,60 @@ export default function AdminTimesheetPage() {
                 <tr>
                   <td
                     colSpan={days.length + 2}
-                    className="px-4 py-8 text-center text-sm text-slate-500"
+                    className="px-4 py-8 text-center text-sm text-muted"
                   >
                     No tasks found for this week with current filters.
                   </td>
                 </tr>
               )}
             </tbody>
+
+            {/* Totals footer */}
+            {tasksById.length > 0 && (
+              <tfoot className="bg-background/80 border-t border-border text-xs text-muted">
+                <tr>
+                  <td className="px-4 py-3 font-medium">TOTAL HOURS</td>
+                  {days.map((iso) => {
+                    const dayTotal = tasksById.reduce((sum, task) => {
+                      const h = hoursByTaskDay[task.id]?.[iso] ?? 0;
+                      return sum + h;
+                    }, 0);
+                    return (
+                      <td key={iso} className="px-3 py-3 text-center">
+                        {dayTotal.toFixed(2)}
+                      </td>
+                    );
+                  })}
+                  <td className="px-4 py-3 text-right font-semibold text-foreground">
+                    {Object.values(hoursByTaskDay)
+                      .reduce((sumTask, dayMap) => {
+                        const taskTotal = Object.values(dayMap).reduce(
+                          (s, h) => s + h,
+                          0
+                        );
+                        return sumTask + taskTotal;
+                      }, 0)
+                      .toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </section>
 
-      {/* Edit hours + description modal */}
+      {/* Edit modal */}
       {editTarget && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm px-4">
-          <div className="w-full max-w-md rounded-2xl bg-slate-950 text-slate-100 shadow-2xl border border-slate-800 overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md rounded-2xl bg-card text-foreground shadow-2xl border border-border overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <h2 className="text-sm font-semibold flex items-center gap-2">
-                <Clock4 className="h-4 w-4 text-emerald-400" />
+                <Clock4 className="h-4 w-4 text-emerald-500" />
                 Edit hours
               </h2>
               <button
                 onClick={closeEdit}
-                className="h-7 w-7 rounded-full border border-slate-700 text-slate-300 hover:bg-slate-800"
+                className="h-7 w-7 rounded-full border border-border text-muted hover:bg-background"
               >
                 ✕
               </button>
@@ -745,14 +744,14 @@ export default function AdminTimesheetPage() {
               className="px-5 py-4 space-y-4 text-sm"
             >
               <div>
-                <p className="text-xs text-slate-400 mb-1">Date</p>
-                <p className="text-slate-100">
+                <p className="text-xs text-muted mb-1">Date</p>
+                <p className="text-foreground">
                   {formatDateShortWithYear(editTarget.date)}
                 </p>
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-foreground">
                   Worked hours
                 </label>
                 <input
@@ -761,14 +760,14 @@ export default function AdminTimesheetPage() {
                   step={0.25}
                   value={editedHours}
                   onChange={(e) => setEditedHours(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                   required
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300 flex items-center gap-1">
-                  <FileText className="h-3.5 w-3.5 text-emerald-400" />
+                <label className="text-xs font-medium text-foreground flex items-center gap-1">
+                  <FileText className="h-3.5 w-3.5 text-emerald-500" />
                   Description of work
                 </label>
                 <textarea
@@ -777,16 +776,16 @@ export default function AdminTimesheetPage() {
                     setEditedDescription(e.target.value)
                   }
                   rows={3}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 resize-y"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 resize-y"
                   placeholder="Briefly describe what was done in this time."
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800 mt-2">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border mt-2">
                 <button
                   type="button"
                   onClick={closeEdit}
-                  className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 hover:bg-slate-800"
+                  className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground hover:bg-card"
                 >
                   Cancel
                 </button>

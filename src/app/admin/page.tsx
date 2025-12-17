@@ -144,12 +144,12 @@ export default function AdminDashboard() {
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
-          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
             <BarChart3 className="h-5 w-5" />
           </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted">
               Visual overview of employees, projects, clients, tasks and
               timesheet hours.
             </p>
@@ -157,18 +157,18 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Filters section (separate block) */}
-      <section className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 md:px-5 md:py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <Filter className="h-4 w-4 text-emerald-400" />
+      {/* Filters */}
+      <section className="rounded-xl border border-border bg-card px-4 py-3 md:px-5 md:py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-2 text-xs text-muted">
+          <Filter className="h-4 w-4 text-emerald-500" />
           <span>Filters</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-4 text-xs">
           {/* Employee filter */}
           <div className="flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5 text-slate-500" />
-            <span className="text-slate-400">Employee:</span>
+            <Users className="h-3.5 w-3.5 text-muted" />
+            <span className="text-muted">Employee:</span>
             <select
               value={selectedEmployeeId}
               onChange={(e) =>
@@ -176,7 +176,7 @@ export default function AdminDashboard() {
                   e.target.value === "all" ? "all" : Number(e.target.value)
                 )
               }
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             >
               <option value="all">All employees</option>
               {employees.map((emp) => (
@@ -189,87 +189,87 @@ export default function AdminDashboard() {
 
           {/* Date filter */}
           <div className="flex items-center gap-1.5">
-            <CalendarRange className="h-3.5 w-3.5 text-slate-500" />
-            <span className="text-slate-400">Date:</span>
+            <CalendarRange className="h-3.5 w-3.5 text-muted" />
+            <span className="text-muted">Date:</span>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
-            <span className="text-slate-500">–</span>
+            <span className="text-muted">–</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
           </div>
         </div>
       </section>
 
-      {/* Summary cards – now hyperlinks */}
+      {/* Summary cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Link
           href="/admin/employees"
-          className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex items-center justify-between hover:border-emerald-500 hover:bg-slate-900 transition-colors"
+          className="rounded-xl border border-border bg-card p-4 flex items-center justify-between hover:border-emerald-500 hover:bg-card/90 transition-colors"
         >
           <div>
-            <p className="text-xs text-slate-400">Total employees</p>
+            <p className="text-xs text-muted">Total employees</p>
             <p className="mt-2 text-2xl font-semibold underline decoration-emerald-500/70 decoration-2 underline-offset-4">
               {totalEmployees}
             </p>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[11px] text-muted mt-1">
               Click to view the employees list.
             </p>
           </div>
-          <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-emerald-400">
+          <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-background text-emerald-500">
             <Users className="h-4 w-4" />
           </div>
         </Link>
 
         <Link
           href="/admin/projects"
-          className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex items-center justify-between hover:border-emerald-500 hover:bg-slate-900 transition-colors"
+          className="rounded-xl border border-border bg-card p-4 flex items-center justify-between hover:border-emerald-500 hover:bg-card/90 transition-colors"
         >
           <div>
-            <p className="text-xs text-slate-400">Active projects</p>
+            <p className="text-xs text-muted">Active projects</p>
             <p className="mt-2 text-2xl font-semibold underline decoration-emerald-500/70 decoration-2 underline-offset-4">
               {activeProjects}
             </p>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[11px] text-muted mt-1">
               Click to manage projects.
             </p>
           </div>
-          <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-emerald-400">
+          <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-background text-emerald-500">
             <Briefcase className="h-4 w-4" />
           </div>
         </Link>
 
         <Link
           href="/admin/tasks"
-          className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex items-center justify-between hover:border-emerald-500 hover:bg-slate-900 transition-colors"
+          className="rounded-xl border border-border bg-card p-4 flex items-center justify-between hover:border-emerald-500 hover:bg-card/90 transition-colors"
         >
           <div>
-            <p className="text-xs text-slate-400">Open tasks</p>
+            <p className="text-xs text-muted">Open tasks</p>
             <p className="mt-2 text-2xl font-semibold underline decoration-emerald-500/70 decoration-2 underline-offset-4">
               {openTasks}
             </p>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[11px] text-muted mt-1">
               Click to see filtered tasks.
             </p>
           </div>
-          <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-emerald-400">
+          <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-background text-emerald-500">
             <ClipboardList className="h-4 w-4" />
           </div>
         </Link>
       </div>
 
-      {/* Charts – unchanged from your version */}
-      {/* Projects by status */}
+      {/* Charts */}
       <div className="grid gap-6 xl:grid-cols-3">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col">
-          <p className="text-xs text-slate-400 mb-2">Projects by status</p>
+        {/* Projects by status */}
+        <div className="rounded-xl border border-border bg-card p-4 flex flex-col">
+          <p className="text-xs text-muted mb-2">Projects by status</p>
           <div className="flex-1 min-h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -293,7 +293,7 @@ export default function AdminDashboard() {
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <ul className="mt-3 space-y-1 text-[11px] text-slate-300">
+          <ul className="mt-3 space-y-1 text-[11px] text-foreground">
             {projectStatusData.map((s, i) => (
               <li key={s.name} className="flex items-center gap-2">
                 <span
@@ -301,15 +301,15 @@ export default function AdminDashboard() {
                   style={{ backgroundColor: COLORS[i % COLORS.length] }}
                 />
                 <span>{s.name}</span>
-                <span className="ml-auto text-slate-400">{s.value}</span>
+                <span className="ml-auto text-muted">{s.value}</span>
               </li>
             ))}
           </ul>
         </div>
 
         {/* Clients by status */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col">
-          <p className="text-xs text-slate-400 mb-2">Clients by status</p>
+        <div className="rounded-xl border border-border bg-card p-4 flex flex-col">
+          <p className="text-xs text-muted mb-2">Clients by status</p>
           <div className="flex-1 min-h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -333,7 +333,7 @@ export default function AdminDashboard() {
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <ul className="mt-3 space-y-1 text-[11px] text-slate-300">
+          <ul className="mt-3 space-y-1 text-[11px] text-foreground">
             {clientStatusData.map((s, i) => (
               <li key={s.name} className="flex items-center gap-2">
                 <span
@@ -341,16 +341,16 @@ export default function AdminDashboard() {
                   style={{ backgroundColor: COLORS[i % COLORS.length] }}
                 />
                 <span>{s.name}</span>
-                <span className="ml-auto text-slate-400">{s.value}</span>
+                <span className="ml-auto text-muted">{s.value}</span>
               </li>
             ))}
           </ul>
         </div>
 
-        {/* Tasks by status (filtered) */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col">
-          <p className="text-xs text-slate-400 mb-1">Tasks by status</p>
-          <p className="text-[11px] text-slate-500 mb-2">
+        {/* Tasks by status */}
+        <div className="rounded-xl border border-border bg-card p-4 flex flex-col">
+          <p className="text-xs text-muted mb-1">Tasks by status</p>
+          <p className="text-[11px] text-muted mb-2">
             {selectedEmployeeName}, {dateLabel}
           </p>
           <div className="flex-1 min-h-[220px]">
@@ -376,7 +376,7 @@ export default function AdminDashboard() {
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <ul className="mt-3 space-y-1 text-[11px] text-slate-300">
+          <ul className="mt-3 space-y-1 text-[11px] text-foreground">
             {tasksByStatusData.map((s, i) => (
               <li key={s.name} className="flex items-center gap-2">
                 <span
@@ -384,22 +384,22 @@ export default function AdminDashboard() {
                   style={{ backgroundColor: COLORS[i % COLORS.length] }}
                 />
                 <span>{s.name}</span>
-                <span className="ml-auto text-slate-400">{s.value}</span>
+                <span className="ml-auto text-muted">{s.value}</span>
               </li>
             ))}
           </ul>
         </div>
 
         {/* Tasks per date */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col xl:col-span-2">
-          <p className="text-xs text-slate-400 mb-1">Tasks count by date</p>
-          <p className="text-[11px] text-slate-500 mb-2">
+        <div className="rounded-xl border border-border bg-card p-4 flex flex-col xl:col-span-2">
+          <p className="text-xs text-muted mb-1">Tasks count by date</p>
+          <p className="text-[11px] text-muted mb-2">
             {selectedEmployeeName}, {dateLabel}
           </p>
           <div className="flex-1 min-h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={tasksByDateData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 10, fill: "#9ca3af" }}
@@ -413,17 +413,17 @@ export default function AdminDashboard() {
         </div>
 
         {/* Hours per date */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col">
-          <p className="text-xs text-slate-400 mb-1">
+        <div className="rounded-xl border border-border bg-card p-4 flex flex-col">
+          <p className="text-xs text-muted mb-1">
             Timesheet hours by date
           </p>
-          <p className="text-[11px] text-slate-500 mb-2">
+          <p className="text-[11px] text-muted mb-2">
             {selectedEmployeeName}, {dateLabel}
           </p>
           <div className="flex-1 min-h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={hoursByDateData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 10, fill: "#9ca3af" }}

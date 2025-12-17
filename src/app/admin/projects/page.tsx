@@ -7,11 +7,11 @@ import ProjectModal from "@/components/ProjectModal";
 
 function StatusBadge({ status }: { status: ProjectStatus }) {
   const base =
-    "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium";
+    "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border";
   if (status === "Active") {
     return (
       <span
-        className={`${base} bg-emerald-500/10 text-emerald-400 border border-emerald-500/40`}
+        className={`${base} bg-emerald-500/10 text-emerald-500 border-emerald-500/40`}
       >
         Active
       </span>
@@ -20,7 +20,7 @@ function StatusBadge({ status }: { status: ProjectStatus }) {
   if (status === "Completed") {
     return (
       <span
-        className={`${base} bg-sky-500/10 text-sky-300 border border-sky-500/40`}
+        className={`${base} bg-sky-500/10 text-sky-500 border-sky-500/40`}
       >
         Completed
       </span>
@@ -28,7 +28,7 @@ function StatusBadge({ status }: { status: ProjectStatus }) {
   }
   return (
     <span
-      className={`${base} bg-amber-500/10 text-amber-300 border border-amber-500/40`}
+      className={`${base} bg-amber-500/10 text-amber-500 border-amber-500/40`}
     >
       On Hold
     </span>
@@ -115,7 +115,7 @@ export default function AdminProjects() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted">
             Active, on‑hold and completed projects for all clients.
           </p>
         </div>
@@ -129,16 +129,16 @@ export default function AdminProjects() {
       </div>
 
       {/* Container */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
+      <div className="rounded-2xl border border-border bg-card overflow-hidden">
         {/* Toolbar */}
-        <div className="flex flex-col gap-3 border-b border-slate-800 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span className="font-medium text-slate-200">
+        <div className="flex flex-col gap-3 border-b border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <span className="font-medium text-foreground">
               {filteredProjects.length}
             </span>
             <span>projects</span>
             {(searchTerm || statusFilter !== "All") && (
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-muted">
                 (filtered from {projects.length})
               </span>
             )}
@@ -150,14 +150,14 @@ export default function AdminProjects() {
               placeholder="Search projects"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-56 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full sm:w-56 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
             <select
               value={statusFilter}
               onChange={(e) =>
                 setStatusFilter(e.target.value as StatusFilter)
               }
-              className="hidden sm:block rounded-lg border border-slate-700 bg-slate-900/70 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="hidden sm:block rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             >
               <option value="All">All</option>
               <option value="Active">Active</option>
@@ -170,7 +170,7 @@ export default function AdminProjects() {
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs sm:text-sm">
-            <thead className="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+            <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
                 <th className="px-4 py-3 font-medium">Project</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -185,30 +185,30 @@ export default function AdminProjects() {
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-950/40">
+            <tbody className="divide-y divide-border bg-card">
               {filteredProjects.length > 0 ? (
                 filteredProjects.map((project) => (
                   <tr
                     key={project.id}
-                    className="hover:bg-slate-900/60 cursor-pointer"
+                    className="hover:bg-background/60 cursor-pointer"
                     onClick={() => handleRowClick(project.id)}
                   >
-                    <td className="px-4 py-3 text-slate-100">
+                    <td className="px-4 py-3 text-foreground">
                       {project.name}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={project.status} />
                     </td>
-                    <td className="px-4 py-3 text-slate-300 text-xs">
+                    <td className="px-4 py-3 text-muted text-xs">
                       {project.code}
                     </td>
-                    <td className="px-4 py-3 text-slate-300">
+                    <td className="px-4 py-3 text-muted">
                       {project.clientName}
                     </td>
-                    <td className="px-4 py-3 hidden md:table-cell text-slate-300">
+                    <td className="px-4 py-3 hidden md:table-cell text-muted">
                       {project.startDate || "-"}
                     </td>
-                    <td className="px-4 py-3 hidden md:table-cell text-slate-300">
+                    <td className="px-4 py-3 hidden md:table-cell text-muted">
                       {project.endDate || "-"}
                     </td>
                     <td
@@ -217,28 +217,28 @@ export default function AdminProjects() {
                     >
                       <button
                         onClick={() => toggleMenu(project.id)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 hover:bg-slate-800"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground hover:bg-card"
                       >
                         ⋮
                       </button>
 
                       {openMenuId === project.id && (
-                        <div className="absolute right-4 top-11 z-10 w-40 rounded-lg border border-slate-800 bg-slate-950/95 text-xs shadow-lg">
+                        <div className="absolute right-4 top-11 z-10 w-40 rounded-lg border border-border bg-card text-xs shadow-lg">
                           <button
                             onClick={() => handleView(project)}
-                            className="block w-full px-3 py-2 text-left hover:bg-slate-900"
+                            className="block w-full px-3 py-2 text-left hover:bg-background/70"
                           >
                             View details
                           </button>
                           <button
                             onClick={() => handleEdit(project)}
-                            className="block w-full px-3 py-2 text-left hover:bg-slate-900"
+                            className="block w-full px-3 py-2 text-left hover:bg-background/70"
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => handleRemove(project.id)}
-                            className="block w-full px-3 py-2 text-left text-red-400 hover:bg-red-500/10"
+                            className="block w-full px-3 py-2 text-left text-red-500 hover:bg-red-500/10"
                           >
                             Remove
                           </button>
@@ -251,7 +251,7 @@ export default function AdminProjects() {
                 <tr>
                   <td
                     colSpan={7}
-                    className="px-4 py-8 text-center text-sm text-slate-500"
+                    className="px-4 py-8 text-center text-sm text-muted"
                   >
                     No matching projects.
                   </td>

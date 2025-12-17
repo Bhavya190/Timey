@@ -26,7 +26,7 @@ function StatusBadge({ status }: { status: TaskStatus }) {
   if (status === "Completed") {
     return (
       <span
-        className={`${base} bg-emerald-500/10 text-emerald-400 border-emerald-500/40`}
+        className={`${base} bg-emerald-500/10 text-emerald-500 border-emerald-500/40`}
       >
         Completed
       </span>
@@ -35,7 +35,7 @@ function StatusBadge({ status }: { status: TaskStatus }) {
   if (status === "In Progress") {
     return (
       <span
-        className={`${base} bg-sky-500/10 text-sky-300 border-sky-500/40`}
+        className={`${base} bg-sky-500/10 text-sky-500 border-sky-500/40`}
       >
         In Progress
       </span>
@@ -43,7 +43,7 @@ function StatusBadge({ status }: { status: TaskStatus }) {
   }
   return (
     <span
-      className={`${base} bg-amber-500/10 text-amber-300 border-amber-500/40`}
+      className={`${base} bg-amber-500/10 text-amber-500 border-amber-500/40`}
     >
       Not Started
     </span>
@@ -56,7 +56,7 @@ function BillingBadge({ billingType }: { billingType: TaskBillingType }) {
   if (billingType === "billable") {
     return (
       <span
-        className={`${base} bg-emerald-500/10 text-emerald-300 border-emerald-500/40`}
+        className={`${base} bg-emerald-500/10 text-emerald-500 border-emerald-500/40`}
       >
         Billable
       </span>
@@ -64,7 +64,7 @@ function BillingBadge({ billingType }: { billingType: TaskBillingType }) {
   }
   return (
     <span
-      className={`${base} bg-slate-600/20 text-slate-200 border-slate-500/40`}
+      className={`${base} bg-muted text-muted-foreground border-border`}
     >
       Non‑billable
     </span>
@@ -158,7 +158,7 @@ export default function AdminTasks() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted">
             Tasks grouped by project, with worked hours for timesheet and
             billing.
           </p>
@@ -170,7 +170,7 @@ export default function AdminTasks() {
           className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold shadow-sm ${
             hasProjects
               ? "bg-emerald-500 text-slate-950 shadow-emerald-500/40 hover:bg-emerald-400"
-              : "bg-slate-800 text-slate-500 cursor-not-allowed"
+              : "bg-muted text-muted-foreground cursor-not-allowed"
           }`}
         >
           {hasProjects ? "+ Add Task" : "Add a project first"}
@@ -178,16 +178,16 @@ export default function AdminTasks() {
       </div>
 
       {/* Container */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
+      <div className="rounded-2xl border border-border bg-card overflow-hidden">
         {/* Toolbar */}
-        <div className="flex flex-col gap-3 border-b border-slate-800 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span className="font-medium text-slate-200">
+        <div className="flex flex-col gap-3 border-b border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <span className="font-medium text-foreground">
               {filteredTasks.length}
             </span>
             <span>tasks</span>
             {(searchTerm || statusFilter !== "All") && (
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-muted">
                 (filtered from {tasks.length})
               </span>
             )}
@@ -199,14 +199,14 @@ export default function AdminTasks() {
               placeholder="Search tasks, projects, assignees, billing"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-56 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full sm:w-56 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
             <select
               value={statusFilter}
               onChange={(e) =>
                 setStatusFilter(e.target.value as StatusFilter)
               }
-              className="hidden sm:block rounded-lg border border-slate-700 bg-slate-900/70 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="hidden sm:block rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             >
               <option value="All">All</option>
               <option value="Not Started">Not Started</option>
@@ -219,7 +219,7 @@ export default function AdminTasks() {
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs sm:text-sm">
-            <thead className="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+            <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
                 <th className="px-4 py-3 font-medium">Date</th>
                 <th className="px-4 py-3 font-medium">Task</th>
@@ -231,21 +231,23 @@ export default function AdminTasks() {
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-950/40">
+            <tbody className="divide-y divide-border bg-card">
               {filteredTasks.length > 0 ? (
                 filteredTasks.map((task) => (
-                  <tr key={task.id} className="hover:bg-slate-900/60">
-                    <td className="px-4 py-3 text-slate-300">
+                  <tr key={task.id} className="hover:bg-background/60">
+                    <td className="px-4 py-3 text-muted">
                       {formatHumanDate(task.date)}
                     </td>
-                    <td className="px-4 py-3 text-slate-100">{task.name}</td>
-                    <td className="px-4 py-3 text-slate-300">
+                    <td className="px-4 py-3 text-foreground">
+                      {task.name}
+                    </td>
+                    <td className="px-4 py-3 text-muted">
                       {task.projectName}
                     </td>
-                    <td className="px-4 py-3 text-slate-300">
+                    <td className="px-4 py-3 text-foreground">
                       {task.workedHours.toFixed(2)}
                     </td>
-                    <td className="px-4 py-3 text-slate-300">
+                    <td className="px-4 py-3 text-muted">
                       {formatAssignees(task.assigneeIds)}
                     </td>
                     <td className="px-4 py-3">
@@ -260,28 +262,28 @@ export default function AdminTasks() {
                     >
                       <button
                         onClick={() => toggleMenu(task.id)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 hover:bg-slate-800"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground hover:bg-card"
                       >
                         ⋮
                       </button>
 
                       {openMenuId === task.id && (
-                        <div className="absolute right-4 top-11 z-10 w-40 rounded-lg border border-slate-800 bg-slate-950/95 text-xs shadow-lg">
+                        <div className="absolute right-4 top-11 z-10 w-40 rounded-lg border border-border bg-card text-xs shadow-lg">
                           <button
                             onClick={() => handleView(task)}
-                            className="block w-full px-3 py-2 text-left hover:bg-slate-900"
+                            className="block w-full px-3 py-2 text-left hover:bg-background/70"
                           >
                             View project
                           </button>
                           <button
                             onClick={() => handleEdit(task)}
-                            className="block w-full px-3 py-2 text-left hover:bg-slate-900"
+                            className="block w-full px-3 py-2 text-left hover:bg-background/70"
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => handleRemove(task.id)}
-                            className="block w-full px-3 py-2 text-left text-red-400 hover:bg-red-500/10"
+                            className="block w-full px-3 py-2 text-left text-red-500 hover:bg-red-500/10"
                           >
                             Remove
                           </button>
@@ -294,7 +296,7 @@ export default function AdminTasks() {
                 <tr>
                   <td
                     colSpan={8}
-                    className="px-4 py-8 text-center text-sm text-slate-500"
+                    className="px-4 py-8 text-center text-sm text-muted"
                   >
                     No matching tasks.
                   </td>

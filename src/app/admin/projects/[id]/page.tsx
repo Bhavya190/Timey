@@ -10,7 +10,6 @@ import {
   BadgeCheck,
   CalendarDays,
   FileText,
-  ListChecks,
   Clock4,
   Users,
   Banknote,
@@ -49,56 +48,58 @@ export default async function ProjectDetailPage({ params }: Props) {
 
   return (
     <main className="space-y-6">
-      {/* Header – same structure, with icon */}
+      {/* Header */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
-          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
             <FolderKanban className="h-5 w-5" />
           </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
               Project: {project.name}
             </h1>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted">
               Key project details plus tasks, assignees, and worked hours.
             </p>
           </div>
         </div>
 
-        {/* Grid layout for details (like before) */}
+        {/* Details grid */}
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2 text-sm">
+          <div className="rounded-xl border border-border bg-card p-4 space-y-2 text-sm">
             <p className="flex items-center gap-2">
-              <Hash className="h-4 w-4 text-emerald-400" />
-              <span className="font-medium text-slate-300">Code:</span>
-              <span className="text-slate-100">{project.code}</span>
+              <Hash className="h-4 w-4 text-emerald-500" />
+              <span className="font-medium text-foreground">Code:</span>
+              <span className="text-foreground">{project.code}</span>
             </p>
             <p className="flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-emerald-400" />
-              <span className="font-medium text-slate-300">Client:</span>
-              <span className="text-slate-100">{project.clientName}</span>
+              <Briefcase className="h-4 w-4 text-emerald-500" />
+              <span className="font-medium text-foreground">Client:</span>
+              <span className="text-foreground">{project.clientName}</span>
             </p>
             <p className="flex items-center gap-2">
-              <BadgeCheck className="h-4 w-4 text-emerald-400" />
-              <span className="font-medium text-slate-300">Status:</span>
-              <span className="text-slate-100">{project.status}</span>
+              <BadgeCheck className="h-4 w-4 text-emerald-500" />
+              <span className="font-medium text-foreground">Status:</span>
+              <span className="text-foreground">{project.status}</span>
             </p>
             <p className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-emerald-400" />
-              <span className="font-medium text-slate-300">Start Date:</span>
-              <span className="text-slate-100">
+              <CalendarDays className="h-4 w-4 text-emerald-500" />
+              <span className="font-medium text-foreground">Start Date:</span>
+              <span className="text-foreground">
                 {project.startDate || "-"}
               </span>
             </p>
             <p className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-emerald-400" />
-              <span className="font-medium text-slate-300">End Date:</span>
-              <span className="text-slate-100">{project.endDate || "-"}</span>
+              <CalendarDays className="h-4 w-4 text-emerald-500" />
+              <span className="font-medium text-foreground">End Date:</span>
+              <span className="text-foreground">
+                {project.endDate || "-"}
+              </span>
             </p>
             <p className="flex items-center gap-2">
-              <Banknote className="h-4 w-4 text-emerald-400" />
-              <span className="font-medium text-slate-300">Billing:</span>
-              <span className="text-slate-100">
+              <Banknote className="h-4 w-4 text-emerald-500" />
+              <span className="font-medium text-foreground">Billing:</span>
+              <span className="text-foreground">
                 {project.billingType
                   ? project.billingType === "hourly"
                     ? `Hourly • ${project.defaultBillingRate ?? "-"} /hr`
@@ -108,9 +109,9 @@ export default async function ProjectDetailPage({ params }: Props) {
             </p>
             {(project.estimatedCost || project.duration) && (
               <p className="flex items-center gap-2">
-                <Timer className="h-4 w-4 text-emerald-400" />
-                <span className="font-medium text-slate-300">Estimate:</span>
-                <span className="text-slate-100">
+                <Timer className="h-4 w-4 text-emerald-500" />
+                <span className="font-medium text-foreground">Estimate:</span>
+                <span className="text-foreground">
                   {project.estimatedCost
                     ? `Cost ${project.estimatedCost}`
                     : ""}
@@ -120,17 +121,19 @@ export default async function ProjectDetailPage({ params }: Props) {
               </p>
             )}
             <p className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-emerald-400" />
-              <span className="font-medium text-slate-300">Team size:</span>
-              <span className="text-slate-100">
-                {teamSize > 0 ? `${teamSize} member${teamSize > 1 ? "s" : ""}` : "Not set"}
+              <Users className="h-4 w-4 text-emerald-500" />
+              <span className="font-medium text-foreground">Team size:</span>
+              <span className="text-foreground">
+                {teamSize > 0
+                  ? `${teamSize} member${teamSize > 1 ? "s" : ""}`
+                  : "Not set"}
               </span>
             </p>
             {project.description && (
-              <p className="flex items-start gap-2 text-slate-300">
-                <FileText className="h-4 w-4 mt-0.5 text-emerald-400" />
+              <p className="flex items-start gap-2 text-muted">
+                <FileText className="h-4 w-4 mt-0.5 text-emerald-500" />
                 <span>
-                  <span className="font-medium text-slate-300">
+                  <span className="font-medium text-foreground">
                     Description:{" "}
                   </span>
                   {project.description}
@@ -138,38 +141,37 @@ export default async function ProjectDetailPage({ params }: Props) {
               </p>
             )}
           </div>
-          {/* second column free for future use if needed */}
         </div>
       </section>
 
-      {/* Tasks for this project – unchanged layout, just icons in headers */}
+      {/* Tasks */}
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold tracking-tight">
             Tasks for this project
           </h2>
-          <p className="text-xs text-slate-400 flex items-center gap-2">
+          <p className="text-xs text-muted flex items-center gap-2">
             <span>{projectTasks.length} tasks</span>
-            <span className="h-1 w-1 rounded-full bg-slate-600" />
+            <span className="h-1 w-1 rounded-full bg-border" />
             <span className="inline-flex items-center gap-1">
-              <Clock4 className="h-3.5 w-3.5 text-slate-500" />
+              <Clock4 className="h-3.5 w-3.5 text-muted" />
               Total worked hours:
-              <span className="font-semibold text-slate-100">
+              <span className="font-semibold text-foreground">
                 {totalHours.toFixed(2)}
               </span>
             </span>
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-950/60 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
           {projectTasks.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-slate-500">
+            <p className="px-4 py-6 text-sm text-muted">
               No tasks have been added for this project yet.
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-xs sm:text-sm">
-                <thead className="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+                <thead className="bg-background/80 text-muted border-b border-border">
                   <tr>
                     <th className="px-4 py-3 font-medium">Task</th>
                     <th className="px-4 py-3 font-medium">
@@ -186,16 +188,16 @@ export default async function ProjectDetailPage({ params }: Props) {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800 bg-slate-950/40">
+                <tbody className="divide-y divide-border bg-card">
                   {projectTasks.map((task) => (
-                    <tr key={task.id} className="hover:bg-slate-900/60">
-                      <td className="px-4 py-3 text-slate-100">
+                    <tr key={task.id} className="hover:bg-background/60">
+                      <td className="px-4 py-3 text-foreground">
                         {task.name}
                       </td>
-                      <td className="px-4 py-3 text-slate-300">
+                      <td className="px-4 py-3 text-foreground">
                         {task.workedHours.toFixed(2)}
                       </td>
-                      <td className="px-4 py-3 text-slate-300">
+                      <td className="px-4 py-3 text-muted">
                         {formatAssignees(task.assigneeIds)}
                       </td>
                     </tr>

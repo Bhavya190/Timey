@@ -23,10 +23,10 @@ function StatusBadge({ status }: { status: Employee["status"] }) {
   const isActive = status === "Active";
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${
         isActive
-          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/40"
-          : "bg-slate-600/20 text-slate-300 border border-slate-500/40"
+          ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/40"
+          : "bg-muted text-muted-foreground border-border"
       }`}
     >
       {status}
@@ -89,7 +89,6 @@ export default function AdminEmployees() {
 
   const nextCode = String(employees.length + 1).padStart(3, "0");
 
-  // apply search + active/inactive filter
   const filteredEmployees = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
@@ -114,7 +113,7 @@ export default function AdminEmployees() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Employees</h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted">
             All registered employees visible to the admin.
           </p>
         </div>
@@ -128,16 +127,16 @@ export default function AdminEmployees() {
       </div>
 
       {/* Container */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
+      <div className="rounded-2xl border border-border bg-card overflow-hidden">
         {/* Toolbar */}
-        <div className="flex flex-col gap-3 border-b border-slate-800 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span className="font-medium text-slate-200">
+        <div className="flex flex-col gap-3 border-b border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <span className="font-medium text-foreground">
               {filteredEmployees.length}
             </span>
             <span>employees</span>
             {searchTerm || statusFilter !== "all" ? (
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-muted">
                 (filtered from {employees.length})
               </span>
             ) : null}
@@ -149,14 +148,14 @@ export default function AdminEmployees() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by name, email, code..."
-              className="w-full sm:w-56 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full sm:w-56 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
             <select
               value={statusFilter}
               onChange={(e) =>
                 setStatusFilter(e.target.value as StatusFilter)
               }
-              className="rounded-lg border border-slate-700 bg-slate-900/70 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             >
               <option value="all">All</option>
               <option value="Active">Active</option>
@@ -168,7 +167,7 @@ export default function AdminEmployees() {
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs sm:text-sm">
-            <thead className="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+            <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
                 <th className="px-4 py-3 font-medium">Employee</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -183,21 +182,21 @@ export default function AdminEmployees() {
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-950/40">
+            <tbody className="divide-y divide-border bg-card">
               {filteredEmployees.map((emp) => (
                 <tr
                   key={emp.id}
-                  className="hover:bg-slate-900/60 cursor-pointer"
+                  className="hover:bg-background/60 cursor-pointer"
                   onClick={() => handleRowClick(emp.id)}
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <AvatarCircle name={emp.name} />
                       <div className="space-y-0.5">
-                        <p className="text-sm font-medium text-slate-100">
+                        <p className="text-sm font-medium text-foreground">
                           {emp.name}
                         </p>
-                        <p className="text-[11px] text-slate-400 lg:hidden">
+                        <p className="text-[11px] text-muted lg:hidden">
                           {emp.department}
                         </p>
                       </div>
@@ -206,18 +205,18 @@ export default function AdminEmployees() {
                   <td className="px-4 py-3">
                     <StatusBadge status={emp.status} />
                   </td>
-                  <td className="px-4 py-3 text-slate-300 text-xs">
+                  <td className="px-4 py-3 text-muted text-xs">
                     {emp.code}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="px-4 py-3 text-muted">
                     <span className="font-mono text-[11px] sm:text-xs">
                       {emp.email}
                     </span>
                   </td>
-                  <td className="px-4 py-3 hidden lg:table-cell text-slate-300">
+                  <td className="px-4 py-3 hidden lg:table-cell text-muted">
                     {emp.department}
                   </td>
-                  <td className="px-4 py-3 hidden lg:table-cell text-slate-300">
+                  <td className="px-4 py-3 hidden lg:table-cell text-muted">
                     {emp.location}
                   </td>
                   <td
@@ -226,28 +225,28 @@ export default function AdminEmployees() {
                   >
                     <button
                       onClick={() => toggleMenu(emp.id)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 hover:bg-slate-800"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground hover:bg-card"
                     >
                       ⋮
                     </button>
 
                     {openMenuId === emp.id && (
-                      <div className="absolute right-4 top-11 z-10 w-40 rounded-lg border border-slate-800 bg-slate-950/95 text-xs shadow-lg">
+                      <div className="absolute right-4 top-11 z-10 w-40 rounded-lg border border-border bg-card text-xs shadow-lg">
                         <button
                           onClick={() => handleView(emp)}
-                          className="block w-full px-3 py-2 text-left hover:bg-slate-900"
+                          className="block w-full px-3 py-2 text-left hover:bg-background/70"
                         >
                           View details
                         </button>
                         <button
                           onClick={() => handleEdit(emp)}
-                          className="block w-full px-3 py-2 text-left hover:bg-slate-900"
+                          className="block w-full px-3 py-2 text-left hover:bg-background/70"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleRemove(emp.id)}
-                          className="block w-full px-3 py-2 text-left text-red-400 hover:bg-red-500/10"
+                          className="block w-full px-3 py-2 text-left text-red-500 hover:bg-red-500/10"
                         >
                           Remove
                         </button>
@@ -261,7 +260,7 @@ export default function AdminEmployees() {
                 <tr>
                   <td
                     colSpan={7}
-                    className="px-4 py-8 text-center text-sm text-slate-500"
+                    className="px-4 py-8 text-center text-sm text-muted"
                   >
                     No employees found.
                   </td>
@@ -272,6 +271,7 @@ export default function AdminEmployees() {
         </div>
       </div>
 
+      {/* You can plug your Add/Edit Employee modal here, similar to other admin pages */}
     </div>
   );
 }
