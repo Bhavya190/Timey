@@ -1,34 +1,17 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+// app/layout.tsx
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: "Timey",
-  description:
-    "Streamline your work management and boost productivity with our comprehensive task scheduling solution.",
-};
+import { AppThemeProvider } from "./providers";
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-950 text-slate-100`}
-      >
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      {/* body just hooks into background / foreground tokens */}
+      <body className="min-h-screen bg-background text-foreground">
+        <AppThemeProvider>{children}</AppThemeProvider>
       </body>
     </html>
   );

@@ -31,8 +31,7 @@ import {
   Legend,
 } from "recharts";
 
-// Colors chosen to match your global dashboard:
-// green, yellow, red, blue, purple.
+// Colors for charts (unchanged)
 const SEGMENT_COLORS = ["#22c55e", "#eab308", "#ef4444", "#0ea5e9", "#a855f7"];
 
 function toLocalISODate(d: Date) {
@@ -83,14 +82,12 @@ export default function EmployeeDashboardPage() {
   }, []);
 
   // 2) Derived data
-
   const employee =
     currentEmployeeId != null
       ? demoUsers.find((u) => u.id === currentEmployeeId)
       : undefined;
   const employeeName = employee?.name ?? "Employee";
 
-  // Tasks only for this employee
   const employeeTasks = useMemo(
     () =>
       currentEmployeeId == null
@@ -99,7 +96,6 @@ export default function EmployeeDashboardPage() {
     [currentEmployeeId]
   );
 
-  // Projects where this employee has at least one task
   const projectIds = useMemo(
     () => new Set(employeeTasks.map((t) => t.projectId)),
     [employeeTasks]
@@ -125,9 +121,7 @@ export default function EmployeeDashboardPage() {
 
   const thisWeekTasks = useMemo(
     () =>
-      employeeTasks.filter(
-        (t) => t.date >= startISO && t.date <= endISO
-      ),
+      employeeTasks.filter((t) => t.date >= startISO && t.date <= endISO),
     [employeeTasks, startISO, endISO]
   );
 
@@ -136,7 +130,6 @@ export default function EmployeeDashboardPage() {
     0
   );
 
-  // Projects by status
   const projectsByStatus = useMemo(() => {
     const map: Record<string, number> = {};
     for (const p of employeeProjects) {
@@ -145,7 +138,6 @@ export default function EmployeeDashboardPage() {
     return Object.entries(map).map(([status, value]) => ({ name: status, value }));
   }, [employeeProjects]);
 
-  // Tasks by status
   const tasksByStatus = useMemo(() => {
     const map: Record<string, number> = {};
     for (const t of employeeTasks) {
@@ -154,7 +146,6 @@ export default function EmployeeDashboardPage() {
     return Object.entries(map).map(([status, value]) => ({ name: status, value }));
   }, [employeeTasks]);
 
-  // Task count by date
   const tasksByDate = useMemo(() => {
     const map: Record<string, number> = {};
     for (const t of employeeTasks) {
@@ -165,7 +156,6 @@ export default function EmployeeDashboardPage() {
       .map(([date, count]) => ({ date, count }));
   }, [employeeTasks]);
 
-  // Timesheet aggregation using billingType: "billable" | "non-billable"
   const timesheetByDate = useMemo(() => {
     const map: Record<
       string,
@@ -189,7 +179,6 @@ export default function EmployeeDashboardPage() {
       } else if (billingType === "non-billable") {
         bucket.nonBillable += t.workedHours;
       } else {
-        // if missing, count as non-billable
         bucket.nonBillable += t.workedHours;
       }
     }
@@ -209,11 +198,10 @@ export default function EmployeeDashboardPage() {
     0
   );
 
-  // 3) Conditional returns after hooks
-
+  // 3) Conditional returns
   if (!hydrated) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+      <main className="min-h-screen flex items-center justify-center bg-background text-muted">
         Loading dashboard...
       </main>
     );
@@ -221,33 +209,32 @@ export default function EmployeeDashboardPage() {
 
   if (currentEmployeeId === null) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+      <main className="min-h-screen flex items-center justify-center bg-background text-muted">
         No employee selected. Please go back and log in as an employee.
       </main>
     );
   }
 
   // 4) UI
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
+          <div className="flex items-center gap-2 text-muted text-xs mb-1">
             <LayoutDashboard className="h-4 w-4" />
             <span>Employee Dashboard</span>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">
             Welcome back, {employeeName}
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted">
             Overview of your projects, tasks, and time tracking.
           </p>
         </div>
-        <div className="rounded-lg border border-slate-800 bg-slate-900/70 px-4 py-2 text-xs text-slate-300">
-          <p className="mb-0.5 text-slate-400">Today&apos;s logged hours</p>
-          <p className="text-lg font-semibold text-emerald-400">
+        <div className="rounded-lg border border-border bg-card px-4 py-2 text-xs text-muted">
+          <p className="mb-0.5">Today&apos;s logged hours</p>
+          <p className="text-lg font-semibold text-emerald-500">
             {todayHours.toFixed(2)} h
           </p>
         </div>
@@ -258,44 +245,40 @@ export default function EmployeeDashboardPage() {
         <button
           type="button"
           onClick={() => router.push("/employee/projects")}
-          className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-left hover:border-emerald-500 hover:bg-slate-900 transition"
+          className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left hover:border-emerald-500 hover:bg-card/90 transition"
         >
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
             <FolderKanban className="h-5 w-5" />
           </span>
           <div>
-            <p className="text-xs text-slate-400 mb-0.5">Total Projects</p>
-            <p className="text-xl font-semibold text-slate-100">
-              {totalProjects}
-            </p>
+            <p className="text-xs text-muted mb-0.5">Total Projects</p>
+            <p className="text-xl font-semibold">{totalProjects}</p>
           </div>
         </button>
 
         <button
           type="button"
           onClick={() => router.push("/employee/tasks")}
-          className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-left hover:border-emerald-500 hover:bg-slate-900 transition"
+          className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left hover:border-emerald-500 hover:bg-card/90 transition"
         >
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/10 text-sky-400">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/10 text-sky-500">
             <CheckSquare className="h-5 w-5" />
           </span>
           <div>
-            <p className="text-xs text-slate-400 mb-0.5">Total Tasks</p>
-            <p className="text-xl font-semibold text-slate-100">
-              {totalTasks}
-            </p>
+            <p className="text-xs text-muted mb-0.5">Total Tasks</p>
+            <p className="text-xl font-semibold">{totalTasks}</p>
           </div>
         </button>
 
-        <div className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-500">
             <Clock4 className="h-5 w-5" />
           </span>
           <div>
-            <p className="text-xs text-slate-400 mb-0.5">
+            <p className="text-xs text-muted mb-0.5">
               Timesheet (this week)
             </p>
-            <p className="text-xl font-semibold text-slate-100">
+            <p className="text-xl font-semibold">
               {thisWeekHours.toFixed(2)} h
             </p>
           </div>
@@ -305,21 +288,19 @@ export default function EmployeeDashboardPage() {
       {/* Charts: projects/tasks */}
       <section className="grid gap-4 xl:grid-cols-3">
         {/* Projects by status */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col">
+        <div className="rounded-2xl border border-border bg-card p-4 flex flex-col">
           <div className="flex items-center mb-3 gap-2">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
               <PieIcon className="h-4 w-4" />
             </span>
             <div>
-              <p className="text-xs text-slate-400">Projects</p>
-              <p className="text-sm font-semibold text-slate-100">
-                By status
-              </p>
+              <p className="text-xs text-muted">Projects</p>
+              <p className="text-sm font-semibold">By status</p>
             </div>
           </div>
           <div className="flex-1">
             {projectsByStatus.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center mt-6">
+              <p className="text-xs text-muted text-center mt-6">
                 No project data available.
               </p>
             ) : (
@@ -348,21 +329,19 @@ export default function EmployeeDashboardPage() {
         </div>
 
         {/* Tasks by status */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col">
+        <div className="rounded-2xl border border-border bg-card p-4 flex flex-col">
           <div className="flex items-center mb-3 gap-2">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/10 text-sky-400">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/10 text-sky-500">
               <PieIcon className="h-4 w-4" />
             </span>
             <div>
-              <p className="text-xs text-slate-400">Tasks</p>
-              <p className="text-sm font-semibold text-slate-100">
-                By status
-              </p>
+              <p className="text-xs text-muted">Tasks</p>
+              <p className="text-sm font-semibold">By status</p>
             </div>
           </div>
           <div className="flex-1">
             {tasksByStatus.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center mt-6">
+              <p className="text-xs text-muted text-center mt-6">
                 No task data available.
               </p>
             ) : (
@@ -391,27 +370,25 @@ export default function EmployeeDashboardPage() {
         </div>
 
         {/* Task count by date */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col">
+        <div className="rounded-2xl border border-border bg-card p-4 flex flex-col">
           <div className="flex items-center mb-3 gap-2">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-purple-500/10 text-purple-400">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-purple-500/10 text-purple-500">
               <BarChart3 className="h-4 w-4" />
             </span>
             <div>
-              <p className="text-xs text-slate-400">Tasks</p>
-              <p className="text-sm font-semibold text-slate-100">
-                Task count by date
-              </p>
+              <p className="text-xs text-muted">Tasks</p>
+              <p className="text-sm font-semibold">Task count by date</p>
             </div>
           </div>
           <div className="flex-1">
             {tasksByDate.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center mt-6">
+              <p className="text-xs text-muted text-center mt-6">
                 No task data available.
               </p>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={tasksByDate}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                   <YAxis />
                   <RechartsTooltip />
@@ -426,27 +403,25 @@ export default function EmployeeDashboardPage() {
       {/* Time charts */}
       <section className="grid gap-4 xl:grid-cols-3">
         {/* Total hours by date */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col">
+        <div className="rounded-2xl border border-border bg-card p-4 flex flex-col">
           <div className="flex items-center gap-2 mb-3">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
               <LineIcon className="h-4 w-4" />
             </span>
             <div>
-              <p className="text-xs text-slate-400">Timesheet</p>
-              <p className="text-sm font-semibold text-slate-100">
-                Hours by date
-              </p>
+              <p className="text-xs text-muted">Timesheet</p>
+              <p className="text-sm font-semibold">Hours by date</p>
             </div>
           </div>
           <div className="flex-1">
             {timesheetByDate.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center mt-6">
+              <p className="text-xs text-muted text-center mt-6">
                 No timesheet data available.
               </p>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={timesheetByDate}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                   <YAxis />
                   <RechartsTooltip />
@@ -464,27 +439,25 @@ export default function EmployeeDashboardPage() {
         </div>
 
         {/* Billable hours by date */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col">
+        <div className="rounded-2xl border border-border bg-card p-4 flex flex-col">
           <div className="flex items-center gap-2 mb-3">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10 text-amber-500">
               <LineIcon className="h-4 w-4" />
             </span>
             <div>
-              <p className="text-xs text-slate-400">Timesheet</p>
-              <p className="text-sm font-semibold text-slate-100">
-                Billable hours by date
-              </p>
+              <p className="text-xs text-muted">Timesheet</p>
+              <p className="text-sm font-semibold">Billable hours by date</p>
             </div>
           </div>
           <div className="flex-1">
             {timesheetByDate.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center mt-6">
+              <p className="text-xs text-muted text-center mt-6">
                 No billable data available.
               </p>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={timesheetByDate}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                   <YAxis />
                   <RechartsTooltip />
@@ -502,27 +475,25 @@ export default function EmployeeDashboardPage() {
         </div>
 
         {/* Non‑billable hours by date */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col">
+        <div className="rounded-2xl border border-border bg-card p-4 flex flex-col">
           <div className="flex items-center gap-2 mb-3">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/10 text-rose-400">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/10 text-rose-500">
               <LineIcon className="h-4 w-4" />
             </span>
             <div>
-              <p className="text-xs text-slate-400">Timesheet</p>
-              <p className="text-sm font-semibold text-slate-100">
-                Non‑billable hours by date
-              </p>
+              <p className="text-xs text-muted">Timesheet</p>
+              <p className="text-sm font-semibold">Non‑billable hours by date</p>
             </div>
           </div>
           <div className="flex-1">
             {timesheetByDate.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center mt-6">
+              <p className="text-xs text-muted text-center mt-6">
                 No non‑billable data available.
               </p>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={timesheetByDate}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                   <YAxis />
                   <RechartsTooltip />
@@ -540,7 +511,7 @@ export default function EmployeeDashboardPage() {
         </div>
       </section>
 
-      <p className="text-[11px] text-slate-500">
+      <p className="text-[11px] text-muted">
         Total logged hours (all time): {totalAllTimeHours.toFixed(2)} h
       </p>
     </div>

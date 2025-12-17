@@ -11,6 +11,7 @@ import {
   LogOut,
   User,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function EmployeeLayout({
   children,
@@ -50,12 +51,12 @@ export default function EmployeeLayout({
 
   if (!hydrated) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 px-6 py-5 text-center max-w-md">
-          <h1 className="text-lg font-semibold text-slate-50 mb-2">
+      <main className="min-h-screen flex items-center justify-center bg-background px-4 text-foreground">
+        <div className="rounded-2xl border border-border bg-card px-6 py-5 text-center max-w-md">
+          <h1 className="text-lg font-semibold mb-2">
             Loading your profile...
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted">
             Please wait while your employee profile is loaded.
           </p>
         </div>
@@ -65,12 +66,12 @@ export default function EmployeeLayout({
 
   if (!currentEmployee) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 px-6 py-5 text-center max-w-md">
-          <h1 className="text-lg font-semibold text-slate-50 mb-2">
+      <main className="min-h-screen flex items-center justify-center bg-background px-4 text-foreground">
+        <div className="rounded-2xl border border-border bg-card px-6 py-5 text-center max-w-md">
+          <h1 className="text-lg font-semibold mb-2">
             Select an employee to continue
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted">
             Please go back to the login screen and choose an employee profile.
           </p>
           <button
@@ -92,23 +93,26 @@ export default function EmployeeLayout({
 
   // Layout: fixed/sticky sidebar, right side scrollable
   return (
-    <div className="h-screen w-screen bg-slate-950 text-slate-50 flex">
+    <div className="h-screen w-screen bg-background text-foreground flex">
       {/* Sidebar stays fixed on the left */}
-      <aside className="w-64 border-r border-slate-800 bg-slate-900/80 p-4 flex flex-col justify-between">
+      <aside className="w-64 border-r border-border bg-card/95 p-4 flex flex-col justify-between">
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/40">
-              <Clock className="h-5 w-5 text-emerald-400" />
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/40">
+                <Clock className="h-5 w-5 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold tracking-[0.25em] text-emerald-500 uppercase mb-0.5">
+                  Timey
+                </p>
+                <p className="text-sm text-muted flex items-center gap-1">
+                  <User className="h-4 w-4 text-muted" />
+                  <span className="text-foreground">{currentEmployee.name}</span>
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] font-semibold tracking-[0.25em] text-emerald-400 uppercase mb-0.5">
-                Timey
-              </p>
-              <p className="text-sm text-slate-300 flex items-center gap-1">
-                <User className="h-4 w-4 text-slate-400" />
-                {currentEmployee.name}
-              </p>
-            </div>
+            <ThemeToggle />
           </div>
 
           <nav className="space-y-1 text-sm">
@@ -117,8 +121,8 @@ export default function EmployeeLayout({
               onClick={() => router.push("/employee")}
               className={`flex items-center gap-2 w-full text-left rounded-md px-3 py-2 ${
                 isActive("/employee")
-                  ? "bg-emerald-500 text-slate-900"
-                  : "hover:bg-slate-800"
+                  ? "bg-emerald-500 text-slate-950"
+                  : "hover:bg-background/80"
               }`}
             >
               <LayoutDashboard className="h-4 w-4" />
@@ -129,8 +133,8 @@ export default function EmployeeLayout({
               onClick={() => router.push("/employee/timesheet")}
               className={`flex items-center gap-2 w-full text-left rounded-md px-3 py-2 ${
                 isActive("/employee/timesheet")
-                  ? "bg-emerald-500 text-slate-900"
-                  : "hover:bg-slate-800"
+                  ? "bg-emerald-500 text-slate-950"
+                  : "hover:bg-background/80"
               }`}
             >
               <Clock className="h-4 w-4" />
@@ -141,8 +145,8 @@ export default function EmployeeLayout({
               onClick={() => router.push("/employee/projects")}
               className={`flex items-center gap-2 w-full text-left rounded-md px-3 py-2 ${
                 isActive("/employee/projects")
-                  ? "bg-emerald-500 text-slate-900"
-                  : "hover:bg-slate-800"
+                  ? "bg-emerald-500 text-slate-950"
+                  : "hover:bg-background/80"
               }`}
             >
               <FolderKanban className="h-4 w-4" />
@@ -153,8 +157,8 @@ export default function EmployeeLayout({
               onClick={() => router.push("/employee/tasks")}
               className={`flex items-center gap-2 w-full text-left rounded-md px-3 py-2 ${
                 isActive("/employee/tasks")
-                  ? "bg-emerald-500 text-slate-900"
-                  : "hover:bg-slate-800"
+                  ? "bg-emerald-500 text-slate-950"
+                  : "hover:bg-background/80"
               }`}
             >
               <ListTodo className="h-4 w-4" />
@@ -163,11 +167,11 @@ export default function EmployeeLayout({
           </nav>
         </div>
 
-        <div className="pt-4 border-t border-slate-800">
+        <div className="pt-4 border-t border-border">
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-background px-3 py-2 text-sm text-foreground border border-border hover:bg-card"
           >
             <LogOut className="h-4 w-4" />
             <span>Logout</span>
@@ -176,7 +180,7 @@ export default function EmployeeLayout({
       </aside>
 
       {/* Right side scrolls independently */}
-      <div className="flex-1 h-screen overflow-y-auto">
+      <div className="flex-1 h-screen overflow-y-auto bg-background">
         <main className="p-6">
           {React.isValidElement(children)
             ? React.cloneElement(children as React.ReactElement<any>, {

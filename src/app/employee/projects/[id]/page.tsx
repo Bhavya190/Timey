@@ -10,7 +10,7 @@ import {
   UserCheck,
   Clock3,
   ListChecks,
-} from "lucide-react"; // project + info + tasks icons [web:33]
+} from "lucide-react";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -31,7 +31,6 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
   const { id } = use(params);
   const projectId = Number(id);
 
-  // Load employee id from localStorage
   const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(null);
   const [loadingEmployee, setLoadingEmployee] = useState(true);
 
@@ -64,7 +63,7 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
 
   if (loadingEmployee) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+      <main className="min-h-screen flex items-center justify-center bg-background text-muted">
         Loading employee...
       </main>
     );
@@ -72,7 +71,7 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
 
   if (currentEmployeeId === null) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+      <main className="min-h-screen flex items-center justify-center bg-background text-muted">
         No employee selected. Please go back and log in as an employee.
       </main>
     );
@@ -92,14 +91,14 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
     <div className="space-y-4">
       {/* Header with icon */}
       <div className="flex items-center gap-2">
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
           <FolderKanban className="h-4 w-4" />
         </span>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
             {project.name}
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted">
             Project details and tasks assigned to you.
           </p>
         </div>
@@ -107,44 +106,44 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
 
       {/* Project info */}
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex items-start gap-3">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/10 text-sky-400">
+        <div className="rounded-xl border border-border bg-card p-4 flex items-start gap-3">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/10 text-sky-500">
             <BadgeInfo className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-xs text-slate-400">Project code</p>
-            <p className="mt-1 text-sm text-slate-100">
+            <p className="text-xs text-muted">Project code</p>
+            <p className="mt-1 text-sm text-foreground">
               {project.code}
             </p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex items-start gap-3">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+        <div className="rounded-xl border border-border bg-card p-4 flex items-start gap-3">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
             <UserCheck className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-xs text-slate-400">Client</p>
-            <p className="mt-1 text-sm text-slate-100">
+            <p className="text-xs text-muted">Client</p>
+            <p className="mt-1 text-sm text-foreground">
               {project.clientName}
             </p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex items-start gap-3">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
+        <div className="rounded-xl border border-border bg-card p-4 flex items-start gap-3">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/10 text-amber-500">
             <Clock3 className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-xs text-slate-400">Status</p>
+            <p className="text-xs text-muted">Status</p>
             <p className="mt-1">
               <span
                 className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
                   project.status === "Active"
-                    ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/40"
+                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/40"
                     : project.status === "On Hold"
-                    ? "bg-amber-500/10 text-amber-300 border border-amber-500/40"
-                    : "bg-slate-700/40 text-slate-200 border border-slate-600/60"
+                    ? "bg-amber-500/10 text-amber-500 border border-amber-500/40"
+                    : "bg-muted/20 text-foreground border border-muted/40"
                 }`}
               >
                 {project.status}
@@ -155,13 +154,13 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
       </div>
 
       {/* Tasks table */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3 text-xs text-slate-400">
+      <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3 text-xs text-muted">
           <div className="flex items-center gap-2">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-purple-500/10 text-purple-400">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-purple-500/10 text-purple-500">
               <ListChecks className="h-4 w-4" />
             </span>
-            <span className="font-medium text-slate-200">
+            <span className="font-medium text-foreground">
               {employeeTasksForProject.length}
             </span>
             <span>tasks assigned to you</span>
@@ -170,7 +169,7 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
 
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs sm:text-sm">
-            <thead className="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+            <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
                 <th className="px-4 py-3 font-medium">Date</th>
                 <th className="px-4 py-3 font-medium">Task</th>
@@ -178,21 +177,19 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
                 <th className="px-4 py-3 font-medium">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-950/40">
+            <tbody className="divide-y divide-border bg-card">
               {employeeTasksForProject.map((task) => (
-                <tr key={task.id} className="hover:bg-slate-900/60">
-                  <td className="px-4 py-3 text-slate-300">
+                <tr key={task.id} className="hover:bg-background/60">
+                  <td className="px-4 py-3 text-muted">
                     {formatHumanDate(task.date)}
                   </td>
-                  <td className="px-4 py-3 text-slate-100">
+                  <td className="px-4 py-3 text-foreground">
                     {task.name}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="px-4 py-3 text-foreground">
                     {task.workedHours.toFixed(2)}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">
-                    {task.status}
-                  </td>
+                  <td className="px-4 py-3 text-muted">{task.status}</td>
                 </tr>
               ))}
 
@@ -200,7 +197,7 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
                 <tr>
                   <td
                     colSpan={4}
-                    className="px-4 py-8 text-center text-sm text-slate-500"
+                    className="px-4 py-8 text-center text-sm text-muted"
                   >
                     No tasks assigned to you for this project.
                   </td>
