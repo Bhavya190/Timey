@@ -43,7 +43,8 @@ export default function TaskModal({
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [date, setDate] = useState<string>("");
   const [status, setStatus] = useState<TaskStatus>("Not Started");
-  const [billingType, setBillingType] = useState<TaskBillingType>("billable");
+  const [billingType, setBillingType] =
+    useState<TaskBillingType>("billable");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -124,16 +125,16 @@ export default function TaskModal({
     employeeOptions.find((e) => e.id === id)?.name ?? "Unknown";
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm px-4">
-      <div className="relative w-full max-w-2xl rounded-2xl bg-slate-950 text-slate-100 shadow-2xl border border-slate-800 max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
+      <div className="relative w-full max-w-2xl rounded-2xl bg-card text-foreground shadow-2xl border border-border max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <h2 className="text-lg font-semibold">
             {isEdit ? "Edit Task" : "Add Task"}
           </h2>
           <button
             onClick={resetAndClose}
-            className="h-7 w-7 rounded-full border border-slate-700 text-slate-300 hover:bg-slate-800"
+            className="h-7 w-7 rounded-full border border-border text-muted hover:bg-muted"
           >
             ✕
           </button>
@@ -142,12 +143,12 @@ export default function TaskModal({
         {/* Form */}
         <form
           onSubmit={handleSubmit}
-          className="flex-1 overflow-y-auto px-6 py-4 space-y-4"
+          className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-background"
         >
           {/* Project select */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-300">
-              Project<span className="text-red-400">*</span>
+            <label className="text-xs font-medium text-foreground">
+              Project<span className="text-red-500">*</span>
             </label>
             <select
               value={projectId == null ? "" : String(projectId)}
@@ -156,7 +157,7 @@ export default function TaskModal({
                   e.target.value === "" ? null : Number(e.target.value)
                 )
               }
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
               required
               disabled={projectOptions.length === 0}
             >
@@ -175,40 +176,40 @@ export default function TaskModal({
 
           {/* Task name */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-300">
-              Task Name<span className="text-red-400">*</span>
+            <label className="text-xs font-medium text-foreground">
+              Task Name<span className="text-red-500">*</span>
             </label>
             <input
               value={taskName}
               onChange={(e) => setTaskName(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
               required
             />
           </div>
 
           {/* Date */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-300">
-              Date<span className="text-red-400">*</span>
+            <label className="text-xs font-medium text-foreground">
+              Date<span className="text-red-500">*</span>
             </label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full max-w-xs rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
               required
             />
           </div>
 
           {/* Status */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-300">
+            <label className="text-xs font-medium text-foreground">
               Status
             </label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as TaskStatus)}
-              className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full max-w-xs rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             >
               <option value="Not Started">Not Started</option>
               <option value="In Progress">In Progress</option>
@@ -218,7 +219,7 @@ export default function TaskModal({
 
           {/* Billing type */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-300">
+            <label className="text-xs font-medium text-foreground">
               Billing type
             </label>
             <select
@@ -226,12 +227,12 @@ export default function TaskModal({
               onChange={(e) =>
                 setBillingType(e.target.value as TaskBillingType)
               }
-              className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full max-w-xs rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             >
               <option value="billable">Billable</option>
               <option value="non-billable">Non‑billable</option>
             </select>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-muted">
               Billable hours are included in invoices; non‑billable are for
               internal tracking only.
             </p>
@@ -239,7 +240,7 @@ export default function TaskModal({
 
           {/* Worked hours */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-300">
+            <label className="text-xs font-medium text-foreground">
               Worked Hours
             </label>
             <input
@@ -248,19 +249,19 @@ export default function TaskModal({
               step={0.25}
               value={workedHours}
               onChange={(e) => setWorkedHours(e.target.value)}
-              className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full max-w-xs rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-muted">
               These hours will be used in the timesheet and billing reports.
             </p>
           </div>
 
           {/* Assignees */}
           <div className="space-y-2">
-            <label className="text-xs font-medium text-slate-300">
+            <label className="text-xs font-medium text-foreground">
               Assigned to
             </label>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-muted">
               Select one or more employees who worked on this task.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -271,15 +272,15 @@ export default function TaskModal({
                     key={emp.id}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer ${
                       checked
-                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-200"
-                        : "border-slate-700 bg-slate-900/60 text-slate-200"
+                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-500"
+                        : "border-border bg-card text-foreground"
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={() => handleAssigneeToggle(emp.id)}
-                      className="h-4 w-4 rounded border-slate-600 bg-slate-900"
+                      className="h-4 w-4 rounded border-border bg-background"
                     />
                     <span>{emp.name}</span>
                   </label>
@@ -287,25 +288,25 @@ export default function TaskModal({
               })}
             </div>
             {assigneeIds.length > 0 && (
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-muted">
                 Selected: {assigneeIds.map(getEmployeeName).join(", ")}
               </p>
             )}
           </div>
 
           {error && (
-            <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2">
+            <p className="text-xs text-red-500 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2">
               {error}
             </p>
           )}
         </form>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-slate-800 px-6 py-3">
+        <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-3 bg-card">
           <button
             type="button"
             onClick={resetAndClose}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-100 hover:bg-slate-800"
+            className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted"
           >
             Cancel
           </button>

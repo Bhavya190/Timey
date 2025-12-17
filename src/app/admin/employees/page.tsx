@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Employee, initialEmployees } from "@/lib/employees";
+import AddEmployeeModal from "@/components/AddEmployeeModal";
 
 function AvatarCircle({ name }: { name: string }) {
   const initials = name
@@ -43,7 +44,9 @@ export default function AdminEmployees() {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
+    null
+  );
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -85,6 +88,7 @@ export default function AdminEmployees() {
     } else {
       setEmployees((prev) => prev.map((e) => (e.id === emp.id ? emp : e)));
     }
+    setIsModalOpen(false);
   };
 
   const nextCode = String(employees.length + 1).padStart(3, "0");
@@ -271,7 +275,15 @@ export default function AdminEmployees() {
         </div>
       </div>
 
-      {/* You can plug your Add/Edit Employee modal here, similar to other admin pages */}
+      {/* Add / Edit employee modal */}
+      <AddEmployeeModal
+        open={isModalOpen}
+        mode={modalMode}
+        employee={selectedEmployee}
+        nextCode={nextCode}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveEmployee}
+      />
     </div>
   );
 }

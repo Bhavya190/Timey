@@ -170,24 +170,24 @@ export default function ProjectModal({
     employeeOptions.find((e) => e.id === id)?.name ?? "Unknown";
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm px-4">
-      <div className="relative w-full max-w-4xl rounded-2xl bg-slate-950 text-slate-100 shadow-2xl border border-slate-800 max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
+      <div className="relative w-full max-w-4xl rounded-2xl bg-card text-foreground shadow-2xl border border-border max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <h2 className="text-lg font-semibold">
             {isEdit ? "Edit Project" : "Add Project"}
           </h2>
           <button
             type="button"
             onClick={resetAndClose}
-            className="h-7 w-7 rounded-full border border-slate-700 text-slate-300 hover:bg-slate-800"
+            className="h-7 w-7 rounded-full border border-border text-muted hover:bg-muted"
           >
             ✕
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-800 px-6">
+        <div className="flex border-b border-border px-6">
           {tabs.map((tab) => (
             <button
               key={tab.key}
@@ -195,8 +195,8 @@ export default function ProjectModal({
               onClick={() => setActiveTab(tab.key)}
               className={`relative px-3 py-3 text-sm font-medium ${
                 activeTab === tab.key
-                  ? "text-emerald-400"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "text-emerald-500"
+                  : "text-muted hover:text-foreground"
               }`}
             >
               {tab.label}
@@ -216,21 +216,21 @@ export default function ProjectModal({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Project Name */}
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
-                  Project Name<span className="text-red-400">*</span>
+                <label className="text-xs font-medium text-foreground">
+                  Project Name<span className="text-red-500">*</span>
                 </label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                   required
                 />
               </div>
 
               {/* Client dropdown */}
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
-                  Client<span className="text-red-400">*</span>
+                <label className="text-xs font-medium text-foreground">
+                  Client<span className="text-red-500">*</span>
                 </label>
                 <select
                   value={clientId == null ? "" : String(clientId)}
@@ -244,7 +244,7 @@ export default function ProjectModal({
                         : clientOptions.find((c) => c.id === id);
                     setClientName(found?.name ?? "");
                   }}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                   required
                   disabled={clientOptions.length === 0}
                 >
@@ -263,8 +263,8 @@ export default function ProjectModal({
 
               {/* Team Lead */}
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
-                  Team Lead<span className="text-red-400">*</span>
+                <label className="text-xs font-medium text-foreground">
+                  Team Lead<span className="text-red-500">*</span>
                 </label>
                 <select
                   value={teamLeadId === null ? "" : String(teamLeadId)}
@@ -273,7 +273,7 @@ export default function ProjectModal({
                       e.target.value === "" ? null : Number(e.target.value)
                     )
                   }
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                   required
                 >
                   <option value="">Select team lead</option>
@@ -287,7 +287,7 @@ export default function ProjectModal({
 
               {/* Project Manager */}
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-foreground">
                   Project Manager
                 </label>
                 <select
@@ -297,7 +297,7 @@ export default function ProjectModal({
                       e.target.value === "" ? null : Number(e.target.value)
                     )
                   }
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                 >
                   <option value="">Select manager</option>
                   {employeeOptions.map((emp) => (
@@ -310,14 +310,14 @@ export default function ProjectModal({
 
               {/* Project Code */}
               <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-medium text-slate-300">
-                  Project Code<span className="text-red-400">*</span>
+                <label className="text-xs font-medium text-foreground">
+                  Project Code<span className="text-red-500">*</span>
                 </label>
                 <input
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="PRJ-001"
-                  className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full max-w-xs rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                   required
                 />
               </div>
@@ -326,7 +326,7 @@ export default function ProjectModal({
 
           {activeTab === "team" && (
             <div className="space-y-3">
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted">
                 Select one or more employees to assign them to this project
                 team.
               </p>
@@ -338,15 +338,15 @@ export default function ProjectModal({
                       key={emp.id}
                       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer ${
                         checked
-                          ? "border-emerald-500 bg-emerald-500/10 text-emerald-200"
-                          : "border-slate-700 bg-slate-900/60 text-slate-200"
+                          ? "border-emerald-500 bg-emerald-500/10 text-emerald-500"
+                          : "border-border bg-muted text-foreground"
                       }`}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => handleTeamToggle(emp.id)}
-                        className="h-4 w-4 rounded border-slate-600 bg-slate-900"
+                        className="h-4 w-4 rounded border-border bg-background"
                       />
                       <span>{emp.name}</span>
                     </label>
@@ -354,7 +354,7 @@ export default function ProjectModal({
                 })}
               </div>
               {teamMemberIds.length > 0 && (
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted">
                   Selected: {teamMemberIds.map(getEmployeeName).join(", ")}
                 </p>
               )}
@@ -364,7 +364,7 @@ export default function ProjectModal({
           {activeTab === "billing" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-foreground">
                   Default Billing Rate
                 </label>
                 <input
@@ -372,12 +372,12 @@ export default function ProjectModal({
                   value={defaultBillingRate}
                   onChange={(e) => setDefaultBillingRate(e.target.value)}
                   placeholder="0.00"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-foreground">
                   Project billing type
                 </label>
                 <select
@@ -385,7 +385,7 @@ export default function ProjectModal({
                   onChange={(e) =>
                     setBillingType(e.target.value as "fixed" | "hourly")
                   }
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                 >
                   <option value="fixed">Fixed bid</option>
                   <option value="hourly">Per hour</option>
@@ -393,7 +393,7 @@ export default function ProjectModal({
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-foreground">
                   Fixed cost
                 </label>
                 <input
@@ -401,36 +401,36 @@ export default function ProjectModal({
                   value={fixedCost}
                   onChange={(e) => setFixedCost(e.target.value)}
                   placeholder="0.00"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-foreground">
                   Start Date
                 </label>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-foreground">
                   End Date
                 </label>
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                 />
               </div>
 
               <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-foreground">
                   Invoice (pdf)
                 </label>
                 <input
@@ -439,7 +439,7 @@ export default function ProjectModal({
                   onChange={(e) =>
                     setInvoiceFile(e.target.files?.[0] ?? null)
                   }
-                  className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-xs file:font-medium file:text-slate-100 hover:file:bg-slate-700"
+                  className="block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2 file:text-xs file:font-medium file:text-foreground hover:file:bg-muted/80"
                 />
               </div>
             </div>
@@ -448,31 +448,31 @@ export default function ProjectModal({
           {activeTab === "advanced" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-foreground">
                   Project Description
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-foreground">
                   Duration
                 </label>
                 <input
                   value={duration}
                   onChange={(e) => setDuration(e.target.value)}
                   placeholder="e.g. 3 months"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-foreground">
                   Estimated Cost
                 </label>
                 <input
@@ -480,12 +480,12 @@ export default function ProjectModal({
                   value={estimatedCost}
                   onChange={(e) => setEstimatedCost(e.target.value)}
                   placeholder="0.00"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-foreground">
                   Project Status
                 </label>
                 <select
@@ -493,7 +493,7 @@ export default function ProjectModal({
                   onChange={(e) =>
                     setStatus(e.target.value as ProjectStatus)
                   }
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                 >
                   <option value="Active">Active</option>
                   <option value="On Hold">On Hold</option>
@@ -504,18 +504,18 @@ export default function ProjectModal({
           )}
 
           {error && (
-            <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2">
+            <p className="text-xs text-red-500 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2">
               {error}
             </p>
           )}
         </form>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-slate-800 px-6 py-3">
+        <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-3">
           <button
             type="button"
             onClick={resetAndClose}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-100 hover:bg-slate-800"
+            className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted"
           >
             Cancel
           </button>
