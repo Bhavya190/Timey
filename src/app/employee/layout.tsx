@@ -3,6 +3,14 @@
 import React, { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { demoUsers } from "@/lib/users";
+import {
+  LayoutDashboard,
+  Clock,
+  FolderKanban,
+  ListTodo,
+  LogOut,
+  User,
+} from "lucide-react";
 
 export default function EmployeeLayout({
   children,
@@ -88,57 +96,69 @@ export default function EmployeeLayout({
       {/* Sidebar stays fixed on the left */}
       <aside className="w-64 border-r border-slate-800 bg-slate-900/80 p-4 flex flex-col justify-between">
         <div className="space-y-4">
-          <div>
-            <p className="text-xs font-semibold tracking-[0.25em] text-emerald-400 uppercase mb-1">
-              Timey
-            </p>
-            <p className="text-sm text-slate-300">{currentEmployee.name}</p>
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/40">
+              <Clock className="h-5 w-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold tracking-[0.25em] text-emerald-400 uppercase mb-0.5">
+                Timey
+              </p>
+              <p className="text-sm text-slate-300 flex items-center gap-1">
+                <User className="h-4 w-4 text-slate-400" />
+                {currentEmployee.name}
+              </p>
+            </div>
           </div>
 
           <nav className="space-y-1 text-sm">
             <button
               type="button"
               onClick={() => router.push("/employee")}
-              className={`block w-full text-left rounded-md px-3 py-2 ${
+              className={`flex items-center gap-2 w-full text-left rounded-md px-3 py-2 ${
                 isActive("/employee")
                   ? "bg-emerald-500 text-slate-900"
                   : "hover:bg-slate-800"
               }`}
             >
-              Dashboard
+              <LayoutDashboard className="h-4 w-4" />
+              <span>Dashboard</span>
             </button>
             <button
               type="button"
               onClick={() => router.push("/employee/timesheet")}
-              className={`block w-full text-left rounded-md px-3 py-2 ${
+              className={`flex items-center gap-2 w-full text-left rounded-md px-3 py-2 ${
                 isActive("/employee/timesheet")
                   ? "bg-emerald-500 text-slate-900"
                   : "hover:bg-slate-800"
               }`}
             >
-              Timesheet
+              <Clock className="h-4 w-4" />
+              <span>Timesheet</span>
             </button>
             <button
               type="button"
               onClick={() => router.push("/employee/projects")}
-              className={`block w-full text-left rounded-md px-3 py-2 ${
+              className={`flex items-center gap-2 w-full text-left rounded-md px-3 py-2 ${
                 isActive("/employee/projects")
                   ? "bg-emerald-500 text-slate-900"
                   : "hover:bg-slate-800"
               }`}
             >
-              My Projects
+              <FolderKanban className="h-4 w-4" />
+              <span>My Projects</span>
             </button>
             <button
               type="button"
               onClick={() => router.push("/employee/tasks")}
-              className={`block w-full text-left rounded-md px-3 py-2 ${
+              className={`flex items-center gap-2 w-full text-left rounded-md px-3 py-2 ${
                 isActive("/employee/tasks")
                   ? "bg-emerald-500 text-slate-900"
                   : "hover:bg-slate-800"
               }`}
             >
-              My Tasks
+              <ListTodo className="h-4 w-4" />
+              <span>My Tasks</span>
             </button>
           </nav>
         </div>
@@ -147,9 +167,10 @@ export default function EmployeeLayout({
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full rounded-md bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700"
           >
-            Logout
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
           </button>
         </div>
       </aside>

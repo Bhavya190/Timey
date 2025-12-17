@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState, FormEvent } from "react";
 import { Task, initialTasks } from "@/lib/tasks";
 import { initialProjects } from "@/lib/projects";
 import { demoUsers } from "@/lib/users";
+import {
+  ClipboardClock,
+  CalendarRange,
+  Timer,
+} from "lucide-react"; // icons for header + summary cards [web:54][web:56]
 
 const employeesById = Object.fromEntries(demoUsers.map((u) => [u.id, u]));
 const projectsById = Object.fromEntries(initialProjects.map((p) => [p.id, p]));
@@ -226,18 +231,23 @@ export default function EmployeeTimesheetPage() {
 
   return (
     <main className="space-y-4">
-      {/* Header */}
+      {/* Header with icon */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            My Timesheet
-          </h1>
-          <p className="text-sm text-slate-400">
-            Weekly hours for {employee?.name ?? "this employee"}.
-          </p>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+            <ClipboardClock className="h-4 w-4" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              My Timesheet
+            </h1>
+            <p className="text-sm text-slate-400">
+              Weekly hours for {employee?.name ?? "this employee"}.
+            </p>
+          </div>
         </div>
 
-        {/* Compact week range with prev/next arrows */}
+        {/* Compact week range with prev/next arrows + calendar icon */}
         <div className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-1.5 text-xs text-slate-100">
           <button
             type="button"
@@ -246,10 +256,13 @@ export default function EmployeeTimesheetPage() {
           >
             ◀
           </button>
-          <span>
-            {formatDateShortWithYear(startISO)} –{" "}
-            {formatDateShortWithYear(endISO)}
-          </span>
+          <div className="flex items-center gap-2">
+            <CalendarRange className="h-4 w-4 text-emerald-400" />
+            <span>
+              {formatDateShortWithYear(startISO)} –{" "}
+              {formatDateShortWithYear(endISO)}
+            </span>
+          </div>
           <button
             type="button"
             onClick={() => setWeekOffset((w) => w + 1)}
@@ -262,26 +275,47 @@ export default function EmployeeTimesheetPage() {
 
       {/* Summary cards */}
       <section className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs">
-          <p className="text-slate-400 mb-1">Total Week Hours</p>
-          <p className="text-xl font-semibold text-slate-100">
-            {totalWorkedWeek.toFixed(2)} h
-          </p>
+        <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs flex items-center gap-3">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+            <Timer className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-slate-400 mb-1">Total Week Hours</p>
+            <p className="text-xl font-semibold text-slate-100">
+              {totalWorkedWeek.toFixed(2)} h
+            </p>
+          </div>
         </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs">
-          <p className="text-slate-400 mb-1">Week Range</p>
-          <p className="text-sm text-slate-100">
-            {formatDateShortWithYear(startISO)} –{" "}
-            {formatDateShortWithYear(endISO)}
-          </p>
+
+        <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs flex items-center gap-3">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/10 text-sky-400">
+            <CalendarRange className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-slate-400 mb-1">Week Range</p>
+            <p className="text-sm text-slate-100">
+              {formatDateShortWithYear(startISO)} –{" "}
+              {formatDateShortWithYear(endISO)}
+            </p>
+          </div>
         </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs">
-          <p className="text-slate-400 mb-1">Status</p>
-          <p className="text-xl font-semibold text-slate-100">
-            Not Submitted
-          </p>
+
+        <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs flex items-center gap-3">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
+            <ClipboardClock className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-slate-400 mb-1">Status</p>
+            <p className="text-xl font-semibold text-slate-100">
+              Not Submitted
+            </p>
+          </div>
         </div>
       </section>
+
+      {/* Timesheet table */}
+      {/* ...rest of your component stays the same... */}
+      {/* (keep everything from the table section down exactly as in your code) */}
 
       {/* Timesheet table */}
       <section className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">

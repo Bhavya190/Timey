@@ -4,6 +4,16 @@ import { useEffect, useMemo, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { demoUsers } from "@/lib/users";
 import { initialTasks, type Task } from "@/lib/tasks";
+import {
+  MoreVertical,
+  Eye,
+  Pencil,
+  X,
+  Clock,
+  User,
+  CheckCircle2,
+  CircleDot,
+} from "lucide-react";
 
 const employeesById = Object.fromEntries(demoUsers.map((u) => [u.id, u]));
 
@@ -111,6 +121,31 @@ export default function EmployeeTasksPage() {
     return emp ? emp.name : "-";
   };
 
+  const renderStatus = (status: Task["status"]) => {
+    if (status === "Completed") {
+      return (
+        <span className="inline-flex items-center gap-1 text-emerald-400">
+          <CheckCircle2 className="h-4 w-4" />
+          {status}
+        </span>
+      );
+    }
+    if (status === "In Progress") {
+      return (
+        <span className="inline-flex items-center gap-1 text-sky-400">
+          <CircleDot className="h-4 w-4" />
+          {status}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-slate-300">
+        <CircleDot className="h-4 w-4" />
+        {status}
+      </span>
+    );
+  };
+
   if (loadingEmployee) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
@@ -131,10 +166,12 @@ export default function EmployeeTasksPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+            <Clock className="h-5 w-5 text-emerald-400" />
             My Tasks
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-400 flex items-center gap-1">
+            <User className="h-4 w-4 text-slate-500" />
             Tasks assigned to you, from all projects.
           </p>
         </div>
@@ -184,7 +221,7 @@ export default function EmployeeTasksPage() {
                     {formatAssignees(task.assigneeIds)}
                   </td>
                   <td className="px-4 py-3 text-slate-300">
-                    {task.status}
+                    {renderStatus(task.status)}
                   </td>
                   <td
                     className="relative px-4 py-3 text-right"
@@ -194,22 +231,24 @@ export default function EmployeeTasksPage() {
                       onClick={() => toggleMenu(task.id)}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 hover:bg-slate-800"
                     >
-                      ⋮
+                      <MoreVertical className="h-4 w-4" />
                     </button>
 
                     {openMenuId === task.id && (
                       <div className="absolute right-4 top-11 z-10 w-44 rounded-lg border border-slate-800 bg-slate-950/95 text-xs shadow-lg">
                         <button
                           onClick={() => handleViewProject(task)}
-                          className="block w-full px-3 py-2 text-left hover:bg-slate-900"
+                          className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-slate-900"
                         >
-                          View project
+                          <Eye className="h-4 w-4 text-slate-300" />
+                          <span>View project</span>
                         </button>
                         <button
                           onClick={() => handleOpenEdit(task)}
-                          className="block w-full px-3 py-2 text-left hover:bg-slate-900"
+                          className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-slate-900"
                         >
-                          Edit hours
+                          <Pencil className="h-4 w-4 text-slate-300" />
+                          <span>Edit hours</span>
                         </button>
                       </div>
                     )}
@@ -236,12 +275,15 @@ export default function EmployeeTasksPage() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm px-4">
           <div className="w-full max-w-md rounded-2xl bg-slate-950 text-slate-100 shadow-2xl border border-slate-800 overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3">
-              <h2 className="text-sm font-semibold">Edit worked hours</h2>
+              <h2 className="text-sm font-semibold flex items-center gap-2">
+                <Pencil className="h-4 w-4 text-emerald-400" />
+                Edit worked hours
+              </h2>
               <button
                 onClick={handleCloseEdit}
-                className="h-7 w-7 rounded-full border border-slate-700 text-slate-300 hover:bg-slate-800"
+                className="h-7 w-7 flex items-center justify-center rounded-full border border-slate-700 text-slate-300 hover:bg-slate-800"
               >
-                ✕
+                <X className="h-3 w-3" />
               </button>
             </div>
 
@@ -255,7 +297,8 @@ export default function EmployeeTasksPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-300">
+                <label className="text-xs font-medium text-slate-300 flex items-center gap-1">
+                  <Clock className="h-3 w-3 text-slate-400" />
                   Worked hours
                 </label>
                 <input
@@ -292,8 +335,9 @@ export default function EmployeeTasksPage() {
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
                 >
+                  <CheckCircle2 className="h-3 w-3" />
                   Save
                 </button>
               </div>

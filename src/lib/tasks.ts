@@ -94,11 +94,11 @@ export const initialTasks: Task[] = [
     projectId: 2,
     projectName: "Mobile App",
     name: "API error handling",
-    workedHours: 1,
+    workedHours: 5,
     assigneeIds: [5],
     date: "2025-12-17",
     status: "Not Started",
-    billingType: "non-billable",
+    billingType: "billable",
   },
 
   // Project 3: Internal Tools

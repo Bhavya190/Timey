@@ -31,7 +31,9 @@ import {
   Legend,
 } from "recharts";
 
-const CHART_COLORS = ["#22c55e", "#0ea5e9", "#a855f7", "#f97316", "#f43f5e"];
+// Colors chosen to match your global dashboard:
+// green, yellow, red, blue, purple.
+const SEGMENT_COLORS = ["#22c55e", "#eab308", "#ef4444", "#0ea5e9", "#a855f7"];
 
 function toLocalISODate(d: Date) {
   const year = d.getFullYear();
@@ -58,7 +60,7 @@ function getWeekRangeFromDate(base: Date): { startISO: string; endISO: string } 
 export default function EmployeeDashboardPage() {
   const router = useRouter();
 
-  // 1) ALL HOOKS AT TOP, IN FIXED ORDER
+  // 1) Hooks at top
   const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
@@ -80,7 +82,7 @@ export default function EmployeeDashboardPage() {
     }
   }, []);
 
-  // 2) DERIVED DATA FROM STATE (STILL BEFORE ANY RETURN)
+  // 2) Derived data
 
   const employee =
     currentEmployeeId != null
@@ -88,6 +90,7 @@ export default function EmployeeDashboardPage() {
       : undefined;
   const employeeName = employee?.name ?? "Employee";
 
+  // Tasks only for this employee
   const employeeTasks = useMemo(
     () =>
       currentEmployeeId == null
@@ -96,6 +99,7 @@ export default function EmployeeDashboardPage() {
     [currentEmployeeId]
   );
 
+  // Projects where this employee has at least one task
   const projectIds = useMemo(
     () => new Set(employeeTasks.map((t) => t.projectId)),
     [employeeTasks]
@@ -132,6 +136,7 @@ export default function EmployeeDashboardPage() {
     0
   );
 
+  // Projects by status
   const projectsByStatus = useMemo(() => {
     const map: Record<string, number> = {};
     for (const p of employeeProjects) {
@@ -140,6 +145,7 @@ export default function EmployeeDashboardPage() {
     return Object.entries(map).map(([status, value]) => ({ name: status, value }));
   }, [employeeProjects]);
 
+  // Tasks by status
   const tasksByStatus = useMemo(() => {
     const map: Record<string, number> = {};
     for (const t of employeeTasks) {
@@ -148,6 +154,7 @@ export default function EmployeeDashboardPage() {
     return Object.entries(map).map(([status, value]) => ({ name: status, value }));
   }, [employeeTasks]);
 
+  // Task count by date
   const tasksByDate = useMemo(() => {
     const map: Record<string, number> = {};
     for (const t of employeeTasks) {
@@ -158,6 +165,7 @@ export default function EmployeeDashboardPage() {
       .map(([date, count]) => ({ date, count }));
   }, [employeeTasks]);
 
+  // Timesheet aggregation using billingType: "billable" | "non-billable"
   const timesheetByDate = useMemo(() => {
     const map: Record<
       string,
@@ -171,9 +179,17 @@ export default function EmployeeDashboardPage() {
       const bucket = map[t.date];
       bucket.total += t.workedHours;
 
-      if ((t as any).isBillable) {
+      const billingType = (t as any).billingType as
+        | "billable"
+        | "non-billable"
+        | undefined;
+
+      if (billingType === "billable") {
         bucket.billable += t.workedHours;
+      } else if (billingType === "non-billable") {
+        bucket.nonBillable += t.workedHours;
       } else {
+        // if missing, count as non-billable
         bucket.nonBillable += t.workedHours;
       }
     }
@@ -193,7 +209,7 @@ export default function EmployeeDashboardPage() {
     0
   );
 
-  // 3) ONLY NOW: CONDITIONAL RETURNS (NO HOOKS AFTER THIS)
+  // 3) Conditional returns after hooks
 
   if (!hydrated) {
     return (
@@ -319,7 +335,7 @@ export default function EmployeeDashboardPage() {
                     {projectsByStatus.map((entry, index) => (
                       <Cell
                         key={entry.name}
-                        fill={CHART_COLORS[index % CHART_COLORS.length]}
+                        fill={SEGMENT_COLORS[index % SEGMENT_COLORS.length]}
                       />
                     ))}
                   </Pie>
@@ -362,7 +378,7 @@ export default function EmployeeDashboardPage() {
                     {tasksByStatus.map((entry, index) => (
                       <Cell
                         key={entry.name}
-                        fill={CHART_COLORS[index % CHART_COLORS.length]}
+                        fill={SEGMENT_COLORS[index % SEGMENT_COLORS.length]}
                       />
                     ))}
                   </Pie>
@@ -399,7 +415,7 @@ export default function EmployeeDashboardPage() {
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                   <YAxis />
                   <RechartsTooltip />
-                  <Bar dataKey="count" fill="#a855f7" />
+                  <Bar dataKey="count" fill="#22c55e" />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -450,7 +466,7 @@ export default function EmployeeDashboardPage() {
         {/* Billable hours by date */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col">
           <div className="flex items-center gap-2 mb-3">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/10 text-blue-400">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
               <LineIcon className="h-4 w-4" />
             </span>
             <div>
@@ -475,7 +491,7 @@ export default function EmployeeDashboardPage() {
                   <Line
                     type="monotone"
                     dataKey="billable"
-                    stroke="#0ea5e9"
+                    stroke="#eab308"
                     strokeWidth={2}
                     dot={false}
                   />
@@ -513,7 +529,7 @@ export default function EmployeeDashboardPage() {
                   <Line
                     type="monotone"
                     dataKey="nonBillable"
-                    stroke="#f97316"
+                    stroke="#ef4444"
                     strokeWidth={2}
                     dot={false}
                   />
