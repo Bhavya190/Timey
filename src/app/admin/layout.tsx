@@ -10,6 +10,7 @@ import {
   FolderKanban,
   ClipboardList,
   LogOut,
+  Settings,     // NEW
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -20,6 +21,8 @@ const adminLinks = [
   { href: "/admin/clients", label: "Clients", icon: Briefcase },
   { href: "/admin/projects", label: "Projects", icon: FolderKanban },
   { href: "/admin/tasks", label: "Tasks", icon: ClipboardList },
+  // NEW shared settings page
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
 export default function AdminLayout({

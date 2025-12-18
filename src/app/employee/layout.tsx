@@ -10,6 +10,7 @@ import {
   ListTodo,
   LogOut,
   User,
+  Settings,            // NEW
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -91,10 +92,9 @@ export default function EmployeeLayout({
     return pathname.startsWith(href);
   };
 
-  // Layout: fixed/sticky sidebar, right side scrollable
   return (
     <div className="h-screen w-screen bg-background text-foreground flex">
-      {/* Sidebar stays fixed on the left */}
+      {/* Sidebar */}
       <aside className="w-64 border-r border-border bg-card/95 p-4 flex flex-col justify-between">
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-2">
@@ -164,6 +164,19 @@ export default function EmployeeLayout({
               <ListTodo className="h-4 w-4" />
               <span>My Tasks</span>
             </button>
+            {/* NEW Settings button */}
+            <button
+              type="button"
+              onClick={() => router.push("/employee/settings")}
+              className={`flex items-center gap-2 w-full text-left rounded-md px-3 py-2 ${
+                isActive("/employee/settings")
+                  ? "bg-emerald-500 text-slate-950"
+                  : "hover:bg-background/80"
+              }`}
+            >
+              <Settings className="h-4 w-4" />
+              <span>Settings</span>
+            </button>
           </nav>
         </div>
 
@@ -179,7 +192,7 @@ export default function EmployeeLayout({
         </div>
       </aside>
 
-      {/* Right side scrolls independently */}
+      {/* Main content */}
       <div className="flex-1 h-screen overflow-y-auto bg-background">
         <main className="p-6">
           {React.isValidElement(children)
