@@ -3,6 +3,39 @@
 
 import { FormEvent, useState, ChangeEvent } from "react";
 import { SettingsApi, ProfilePayload } from "@/lib/settings";
+import { PencilIcon } from "lucide-react";
+
+type FieldProps = {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  type?: string;
+  required?: boolean;
+};
+
+function Field({
+  label,
+  name,
+  value,
+  onChange,
+  type = "text",
+  required,
+}: FieldProps) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-muted">{label}</label>
+      <input
+        type={type}
+        name={name}
+        value={value ?? ""}
+        onChange={onChange}
+        required={required}
+        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+      />
+    </div>
+  );
+}
 
 export default function ProfileForm() {
   const [form, setForm] = useState<ProfilePayload>({
@@ -31,13 +64,26 @@ export default function ProfileForm() {
     setForm((prev) => ({ ...prev, avatarUrl: url }));
   }
 
+  // trigger hidden input
+  function handleOpenFilePicker() {
+    const input = document.getElementById(
+      "avatar-input"
+    ) as HTMLInputElement | null;
+    input?.click();
+  }
+
+  // initials from first + last name
+  const initials =
+    (form.firstName?.[0] || "").toUpperCase() +
+    (form.lastName?.[0] || "").toUpperCase();
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setMessage(null);
     setError(null);
     try {
-      // Upload avatarFile on your backend if needed
+      // TODO: upload avatarFile to backend and use returned URL
       await SettingsApi.updateProfile(form);
       setMessage("Profile updated successfully.");
     } catch (err: any) {
@@ -51,31 +97,47 @@ export default function ProfileForm() {
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Avatar */}
       <div className="flex items-center gap-4">
-        <div className="h-16 w-16 rounded-full border border-border bg-background overflow-hidden flex items-center justify-center text-xs text-muted">
-          {form.avatarUrl ? (
-            <img
-              src={form.avatarUrl}
-              alt="Profile"
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <span>Avatar</span>
-          )}
-        </div>
-        <div className="space-y-1.5">
-          <p className="text-sm font-medium">Profile picture</p>
+        <div className="relative">
+          <div className="h-16 w-16 rounded-full bg-blue-100 flex items-center justify-center text-sm font-semibold text-blue-600 overflow-hidden">
+            {form.avatarUrl ? (
+              <img
+                src={form.avatarUrl}
+                alt="Profile"
+                className="h-full w-full object-cover rounded-full"
+              />
+            ) : (
+              <span>{initials || "?"}</span>
+            )}
+          </div>
+
+          {/* small edit button */}
+          <button
+            type="button"
+            onClick={handleOpenFilePicker}
+            className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-white shadow flex items-center justify-center hover:bg-slate-50"
+          >
+            <PencilIcon className="h-3 w-3 text-slate-600" />
+          </button>
+
+          {/* hidden file input */}
           <input
+            id="avatar-input"
             type="file"
             accept="image/*"
             onChange={handleAvatarChange}
-            className="block text-xs text-muted file:mr-3 file:rounded-md file:border file:border-border file:bg-background file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground hover:file:bg-card"
+            className="hidden"
           />
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium">Profile picture</p>
           <p className="text-[11px] text-muted">
-            Recommended: square image, at least 128x128px.
+            Click the pencil icon to upload a profile photo.
           </p>
         </div>
       </div>
 
+      {/* Name fields */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Field
           label="First name"
@@ -99,6 +161,7 @@ export default function ProfileForm() {
         />
       </div>
 
+      {/* Contact fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field
           label="Email"
@@ -117,6 +180,7 @@ export default function ProfileForm() {
         />
       </div>
 
+      {/* Submit */}
       <div className="flex items-center gap-3">
         <button
           type="submit"
@@ -131,37 +195,5 @@ export default function ProfileForm() {
         {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
     </form>
-  );
-}
-
-interface FieldProps {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
-  type?: string;
-  required?: boolean;
-}
-
-function Field({
-  label,
-  name,
-  value,
-  onChange,
-  type = "text",
-  required,
-}: FieldProps) {
-  return (
-    <div className="space-y-1">
-      <label className="text-xs font-medium text-muted">{label}</label>
-      <input
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        required={required}
-        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-      />
-    </div>
   );
 }
