@@ -3,6 +3,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { countries } from "@/lib/lookups";
 import type { Client } from "@/lib/clients";
+import {
+  FileText,
+  MapPin,
+  CreditCard,
+  type LucideIcon,
+} from "lucide-react"; // tab icons [web:34][web:40][web:13][web:11]
 
 type Mode = "add" | "edit";
 
@@ -16,6 +22,18 @@ type Props = {
 };
 
 type TabKey = "basic" | "details" | "billing";
+
+type TabConfig = {
+  key: TabKey;
+  label: string;
+  icon: LucideIcon;
+};
+
+const tabs: TabConfig[] = [
+  { key: "basic", label: "Basic", icon: FileText },
+  { key: "details", label: "Details", icon: MapPin },
+  { key: "billing", label: "Billing", icon: CreditCard },
+];
 
 export default function ClientModal({
   open,
@@ -87,6 +105,7 @@ export default function ClientModal({
 
     if (!name || !email || !country) {
       setError("Please fill all required fields (*) before saving.");
+      setActiveTab("basic");
       return;
     }
 
@@ -119,12 +138,6 @@ export default function ClientModal({
     onClose();
   };
 
-  const tabs: { key: TabKey; label: string }[] = [
-    { key: "basic", label: "Basic" },
-    { key: "details", label: "Details" },
-    { key: "billing", label: "Billing" },
-  ];
-
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
       <div className="relative w-full max-w-3xl rounded-2xl bg-card text-foreground shadow-2xl border border-border max-h-[90vh] overflow-hidden flex flex-col">
@@ -143,23 +156,28 @@ export default function ClientModal({
 
         {/* Tabs */}
         <div className="flex border-b border-border px-6">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`relative px-3 py-3 text-sm font-medium ${
-                activeTab === tab.key
-                  ? "text-emerald-500"
-                  : "text-muted hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-              {activeTab === tab.key && (
-                <span className="absolute inset-x-0 -bottom-px h-0.5 bg-emerald-500" />
-              )}
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`relative flex items-center gap-2 px-3 py-3 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "text-emerald-500"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-4 w-4 flex-shrink-0" />
+                <span>{tab.label}</span>
+                {isActive && (
+                  <span className="absolute inset-x-0 -bottom-px h-0.5 bg-emerald-500" />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Form */}

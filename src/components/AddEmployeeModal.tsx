@@ -1,8 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import React, { FormEvent, useEffect, useState } from "react";
 import { countries, currencies } from "@/lib/lookups";
 import type { Employee } from "@/lib/employees";
+import {
+  UserCircle,
+  IdentificationBadge,
+  CurrencyDollar,
+} from "@phosphor-icons/react";
 
 type Mode = "add" | "edit";
 
@@ -16,6 +21,14 @@ type Props = {
 };
 
 type TabKey = "basic" | "details" | "billing";
+
+function getTodayISODate(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 export default function AddEmployeeModal({
   open,
@@ -31,15 +44,17 @@ export default function AddEmployeeModal({
 
   // Basic
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState(nextCode);
+  const [code, setCode] = useState(nextCode); // internal only
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
   const [password, setPassword] = useState("");
-  const [verifyPassword, setVerifyPassword] = useState("");
-  const [role, setRole] = useState<"admin" | "employee">("employee");
+  const [role, setRole] = useState<"admin" | "employee" | "teamLead">(
+    "employee"
+  );
   const [department, setDepartment] = useState("Default Department");
   const [location, setLocation] = useState("Default Location");
+  const [shift, setShift] = useState<"day" | "evening" | "night">("day");
 
   // Details
   const [address, setAddress] = useState("");
@@ -50,7 +65,6 @@ export default function AddEmployeeModal({
   const [phone, setPhone] = useState("");
   const [hireDate, setHireDate] = useState("");
   const [terminationDate, setTerminationDate] = useState("");
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
 
   // Billing
   const [workType, setWorkType] = useState<"standard" | "overtime">("standard");
@@ -76,7 +90,6 @@ export default function AddEmployeeModal({
     if (!open) return;
 
     if (isEdit && employee) {
-      // EDIT MODE: prefill from existing employee
       setEmail(employee.email);
       setCode(employee.code);
       setFirstName(employee.name);
@@ -84,19 +97,7 @@ export default function AddEmployeeModal({
       setLastName("");
       setDepartment(employee.department);
       setLocation(employee.location);
-      setActiveTab("basic");
-    } else if (!isEdit) {
-      // ADD MODE: reset everything and use latest nextCode
-      setEmail("");
-      setCode(nextCode); // <--- important: refresh code when opening
-      setFirstName("");
-      setMiddleName("");
-      setLastName("");
-      setPassword("");
-      setVerifyPassword("");
-      setRole("employee");
-      setDepartment("Default Department");
-      setLocation("Default Location");
+      setShift("day");
       setAddress("");
       setCity("");
       setStateRegion("");
@@ -105,7 +106,35 @@ export default function AddEmployeeModal({
       setPhone("");
       setHireDate("");
       setTerminationDate("");
-      setResumeFile(null);
+      setWorkType("standard");
+      setBillingType("hourly");
+      setEmployeeRate("");
+      setEmployeeCurrency("INR - Indian Rupee");
+      setBillingRateType("fixed");
+      setBillingCurrency("INR - Indian Rupee");
+      setBillingStart("");
+      setBillingEnd("");
+      setActiveTab("basic");
+      setError("");
+    } else if (!isEdit) {
+      setEmail("");
+      setCode(nextCode);
+      setFirstName("");
+      setMiddleName("");
+      setLastName("");
+      setPassword("");
+      setRole("employee");
+      setDepartment("Default Department");
+      setLocation("Default Location");
+      setShift("day"); // default shift
+      setAddress("");
+      setCity("");
+      setStateRegion("");
+      setCountry("India");
+      setZip("");
+      setPhone("");
+      setHireDate(getTodayISODate()); // default today
+      setTerminationDate("");
       setWorkType("standard");
       setBillingType("hourly");
       setEmployeeRate("");
@@ -123,35 +152,29 @@ export default function AddEmployeeModal({
 
   const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ");
 
+  const validateBasic = () => {
+    if (!email || !code || !department) {
+      setError("Please fill all required Basic fields (*) before continuing.");
+      return false;
+    }
+    if (!isEdit && (!firstName || !lastName || !password)) {
+      setError("Please complete all required Basic fields for a new employee.");
+      return false;
+    }
+    return true;
+  };
+
+  const validateDetails = () => {
+    // all optional now; no blocking validation
+    return true;
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setError("");
 
-    // Required fields for both add & edit
-    if (
-      !email ||
-      !code ||
-      !department ||
-      !location ||
-      !phone ||
-      !employeeRate
-    ) {
-      setError("Please fill all required fields (*) before saving.");
-      return;
-    }
-
-    // Extra required fields for ADD mode
-    if (!isEdit && (!firstName || !lastName || !password || !verifyPassword)) {
-      setError(
-        "Please complete all required Basic fields for a new employee."
-      );
-      return;
-    }
-
-    if (!isEdit && password !== verifyPassword) {
-      setError("Password and Verify Password must match.");
-      return;
-    }
+    if (!validateBasic()) return;
+    if (!validateDetails()) return;
 
     const baseName = fullName || employee?.name || email;
 
@@ -168,6 +191,7 @@ export default function AddEmployeeModal({
     console.log("Extra employee data (not persisted yet):", {
       mode,
       role,
+      shift,
       address,
       city,
       stateRegion,
@@ -176,7 +200,6 @@ export default function AddEmployeeModal({
       phone,
       hireDate,
       terminationDate,
-      resumeFileName: resumeFile?.name,
       workType,
       billingType,
       employeeRate,
@@ -196,11 +219,43 @@ export default function AddEmployeeModal({
     onClose();
   };
 
-  const tabs: { key: TabKey; label: string }[] = [
-    { key: "basic", label: "Basic" },
-    { key: "details", label: "Details" },
-    { key: "billing", label: "Billing" },
+  const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
+    {
+      key: "basic",
+      label: "Basic",
+      icon: <UserCircle className="w-4 h-4" />,
+    },
+    {
+      key: "details",
+      label: "Details",
+      icon: <IdentificationBadge className="w-4 h-4" />,
+    },
+    {
+      key: "billing",
+      label: "Billing",
+      icon: <CurrencyDollar className="w-4 h-4" />,
+    },
   ];
+
+  const goNext = () => {
+    if (activeTab === "basic") {
+      if (!validateBasic()) return;
+      setError("");
+      setActiveTab("details");
+    } else if (activeTab === "details") {
+      if (!validateDetails()) return;
+      setError("");
+      setActiveTab("billing");
+    }
+  };
+
+  const goBack = () => {
+    if (activeTab === "details") setActiveTab("basic");
+    else if (activeTab === "billing") setActiveTab("details");
+  };
+
+  const isFirstStep = activeTab === "basic";
+  const isLastStep = activeTab === "billing";
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
@@ -225,13 +280,14 @@ export default function AddEmployeeModal({
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={`relative px-3 py-3 text-sm font-medium ${
+              className={`relative flex items-center gap-2 px-3 py-3 text-sm font-medium ${
                 activeTab === tab.key
                   ? "text-emerald-500"
                   : "text-muted hover:text-foreground"
               }`}
             >
-              {tab.label}
+              {tab.icon}
+              <span>{tab.label}</span>
               {activeTab === tab.key && (
                 <span className="absolute inset-x-0 -bottom-px h-0.5 bg-emerald-500" />
               )}
@@ -261,19 +317,6 @@ export default function AddEmployeeModal({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-foreground">
-                    Employee Code<span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                    placeholder="001"
-                    required
-                  />
-                </div>
-
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-foreground">
                     First Name
@@ -306,40 +349,24 @@ export default function AddEmployeeModal({
                   <input
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                     required={!isEdit}
                   />
                 </div>
 
                 {!isEdit && (
-                  <>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-foreground">
-                        Password<span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-foreground">
-                        Verify Password
-                        <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="password"
-                        value={verifyPassword}
-                        onChange={(e) => setVerifyPassword(e.target.value)}
-                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                        required
-                      />
-                    </div>
-                  </>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-foreground">
+                      Password<span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                      required
+                    />
+                  </div>
                 )}
 
                 <div className="space-y-1">
@@ -349,11 +376,14 @@ export default function AddEmployeeModal({
                   <select
                     value={role}
                     onChange={(e) =>
-                      setRole(e.target.value as "admin" | "employee")
+                      setRole(
+                        e.target.value as "admin" | "employee" | "teamLead"
+                      )
                     }
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                   >
                     <option value="employee">Employee</option>
+                    <option value="teamLead">Team Lead</option>
                     <option value="admin">Admin</option>
                   </select>
                 </div>
@@ -372,14 +402,30 @@ export default function AddEmployeeModal({
 
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-foreground">
-                    Location<span className="text-red-500">*</span>
+                    Location
                   </label>
                   <input
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                    required
                   />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Shift
+                  </label>
+                  <select
+                    value={shift}
+                    onChange={(e) =>
+                      setShift(e.target.value as "day" | "evening" | "night")
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  >
+                    <option value="day">Day Shift</option>
+                    <option value="evening">Evening Shift</option>
+                    <option value="night">Night Shift</option>
+                  </select>
                 </div>
               </div>
             </>
@@ -449,13 +495,12 @@ export default function AddEmployeeModal({
 
               <div className="space-y-1">
                 <label className="text-xs font-medium text-foreground">
-                  Phone Number<span className="text-red-500">*</span>
+                  Phone Number
                 </label>
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                  required
                 />
               </div>
 
@@ -480,20 +525,6 @@ export default function AddEmployeeModal({
                   value={terminationDate}
                   onChange={(e) => setTerminationDate(e.target.value)}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                />
-              </div>
-
-              <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-medium text-foreground">
-                  Resume (.pdf)
-                </label>
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) =>
-                    setResumeFile(e.target.files?.[0] ?? null)
-                  }
-                  className="block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2 file:text-xs file:font-medium file:text-foreground hover:file:bg-muted/80"
                 />
               </div>
             </div>
@@ -535,7 +566,7 @@ export default function AddEmployeeModal({
 
               <div className="space-y-1">
                 <label className="text-xs font-medium text-foreground">
-                  Employee Rate<span className="text-red-500">*</span>
+                  Employee Rate
                 </label>
                 <input
                   type="number"
@@ -543,7 +574,6 @@ export default function AddEmployeeModal({
                   onChange={(e) => setEmployeeRate(e.target.value)}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                   placeholder="0.00"
-                  required
                 />
               </div>
 
@@ -626,8 +656,8 @@ export default function AddEmployeeModal({
           )}
         </form>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-3">
+        {/* Footer (step controls) */}
+        <div className="flex items-center justify-between border-t border-border px-6 py-3">
           <button
             type="button"
             onClick={resetAndClose}
@@ -635,18 +665,44 @@ export default function AddEmployeeModal({
           >
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              const form =
-                (e.currentTarget.parentElement
-                  ?.previousElementSibling as HTMLFormElement) || null;
-              form?.requestSubmit();
-            }}
-            className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
-          >
-            Save
-          </button>
+
+          <div className="flex items-center gap-3">
+            {!isFirstStep && (
+              <button
+                type="button"
+                onClick={goBack}
+                className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted"
+              >
+                Back
+              </button>
+            )}
+
+            {!isLastStep && (
+              <button
+                type="button"
+                onClick={goNext}
+                className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+              >
+                Next
+              </button>
+            )}
+
+            {isLastStep && (
+              <button
+                type="submit"
+                onClick={(e) => {
+                  const form =
+                    (e.currentTarget.parentElement
+                      ?.parentElement?.previousElementSibling as HTMLFormElement) ||
+                    null;
+                  form?.requestSubmit();
+                }}
+                className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+              >
+                Save
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

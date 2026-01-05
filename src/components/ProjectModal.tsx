@@ -1,9 +1,17 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Select, { type MultiValue } from "react-select";
 import type { Project, ProjectStatus } from "@/lib/projects";
 import { demoUsers } from "@/lib/users";
 import { initialClients } from "@/lib/clients";
+import {
+  Building2,
+  Users,
+  DollarSign,
+  Settings,
+  type LucideIcon,
+} from "lucide-react"; // icons [web:11][web:13]
 
 type Mode = "add" | "edit";
 type TabKey = "basic" | "team" | "billing" | "advanced";
@@ -19,6 +27,26 @@ type Props = {
 
 const employeeOptions = demoUsers.filter((u) => u.role === "employee");
 const clientOptions = initialClients;
+
+type EmployeeOption = { value: number; label: string };
+
+const employeeSelectOptions: EmployeeOption[] = employeeOptions.map((e) => ({
+  value: e.id,
+  label: e.name,
+}));
+
+type TabConfig = {
+  key: TabKey;
+  label: string;
+  icon: LucideIcon;
+};
+
+const tabs: TabConfig[] = [
+  { key: "basic", label: "Basic", icon: Building2 },
+  { key: "team", label: "Team", icon: Users },
+  { key: "billing", label: "Billing", icon: DollarSign },
+  { key: "advanced", label: "Advance", icon: Settings },
+];
 
 export default function ProjectModal({
   open,
@@ -107,16 +135,8 @@ export default function ProjectModal({
 
   if (!open) return null;
 
-  const handleTeamToggle = (id: number) => {
-    setTeamMemberIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    setError("");
-
+  // validate only fields from Basic tab
+  const validateBasicTab = () => {
     const selectedClient =
       clientId == null ? null : clientOptions.find((c) => c.id === clientId);
 
@@ -126,6 +146,27 @@ export default function ProjectModal({
           ? "No clients found. Please add a client before creating a project."
           : "Project name, client, code and team lead are required."
       );
+      setActiveTab("basic");
+      return false;
+    }
+
+    setError("");
+    return true;
+  };
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    // ensure basic tab is valid even if user submits directly
+    if (!validateBasicTab()) return;
+
+    const selectedClient =
+      clientId == null ? null : clientOptions.find((c) => c.id === clientId);
+
+    if (!selectedClient) {
+      setError("Client is required.");
+      setActiveTab("basic");
       return;
     }
 
@@ -159,15 +200,118 @@ export default function ProjectModal({
     onClose();
   };
 
-  const tabs: { key: TabKey; label: string }[] = [
-    { key: "basic", label: "Basic" },
-    { key: "team", label: "Team" },
-    { key: "billing", label: "Billing" },
-    { key: "advanced", label: "Advance" },
-  ];
-
   const getEmployeeName = (id: number) =>
     employeeOptions.find((e) => e.id === id)?.name ?? "Unknown";
+
+  // react-select styles for employees
+  const employeeSelectStyles = {
+    control: (base: any, state: any) => ({
+      ...base,
+      backgroundColor: "hsl(var(--background))",
+      borderColor: state.isFocused
+        ? "rgb(16 185 129)"
+        : "hsl(var(--border))",
+      boxShadow: state.isFocused
+        ? "0 0 0 1px rgba(16,185,129,0.4)"
+        : "none",
+      minHeight: "2.5rem",
+      borderRadius: "0.5rem",
+      cursor: "pointer",
+      ":hover": {
+        borderColor: state.isFocused
+          ? "rgb(16 185 129)"
+          : "hsl(var(--border))",
+      },
+    }),
+    valueContainer: (base: any) => ({
+      ...base,
+      padding: "0 0.75rem",
+      gap: 0,
+    }),
+    placeholder: (base: any) => ({
+      ...base,
+      color: "hsl(var(--muted-foreground))",
+      fontSize: "0.875rem",
+    }),
+    multiValue: () => ({
+      display: "none",
+    }),
+    input: (base: any) => ({
+      ...base,
+      color: "hsl(var(--foreground))",
+      fontSize: "0.875rem",
+    }),
+    indicatorSeparator: () => ({
+      display: "none",
+    }),
+    dropdownIndicator: (base: any, state: any) => ({
+      ...base,
+      color: state.isFocused
+        ? "rgb(16 185 129)"
+        : "hsl(var(--muted-foreground))",
+      paddingRight: "0.5rem",
+      ":hover": {
+        color: "rgb(16 185 129)",
+      },
+    }),
+    menu: (base: any) => ({
+      ...base,
+      backgroundColor: "hsl(var(--card))",
+      borderRadius: "0.5rem",
+      overflow: "hidden",
+      border: "1px solid hsl(var(--border))",
+      boxShadow:
+        "0 10px 15px -3px rgba(15,23,42,0.25), 0 4px 6px -4px rgba(15,23,42,0.2)",
+      zIndex: 40,
+    }),
+    menuList: (base: any) => ({
+      ...base,
+      paddingTop: 4,
+      paddingBottom: 4,
+      maxHeight: 200,
+    }),
+    option: (base: any, state: any) => ({
+      ...base,
+      fontSize: "0.875rem",
+      padding: "0.4rem 0.75rem",
+      backgroundColor: state.isSelected
+        ? "rgba(16,185,129,0.12)"
+        : state.isFocused
+        ? "rgba(148,163,184,0.15)"
+        : "transparent",
+      color: "hsl(var(--foreground))",
+      cursor: "pointer",
+    }),
+  };
+
+  const selectedTeamOptions: EmployeeOption[] = employeeSelectOptions.filter(
+    (opt) => teamMemberIds.includes(opt.value)
+  );
+
+  const isLastTab = activeTab === "advanced";
+
+  const goToNextTab = () => {
+    const order: TabKey[] = ["basic", "team", "billing", "advanced"];
+
+    // validate on basic before moving on
+    if (activeTab === "basic") {
+      const ok = validateBasicTab();
+      if (!ok) return;
+    }
+
+    const idx = order.indexOf(activeTab);
+    if (idx < order.length - 1) {
+      setActiveTab(order[idx + 1]);
+    }
+  };
+
+  const goToPrevTab = () => {
+    const order: TabKey[] = ["basic", "team", "billing", "advanced"];
+    const idx = order.indexOf(activeTab);
+    if (idx > 0) {
+      setActiveTab(order[idx - 1]);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
@@ -188,23 +332,27 @@ export default function ProjectModal({
 
         {/* Tabs */}
         <div className="flex border-b border-border px-6">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`relative px-3 py-3 text-sm font-medium ${
-                activeTab === tab.key
-                  ? "text-emerald-500"
-                  : "text-muted hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-              {activeTab === tab.key && (
-                <span className="absolute inset-x-0 -bottom-px h-0.5 bg-emerald-500" />
-              )}
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`relative flex items-center gap-2 px-3 py-3 text-sm font-medium transition-colors ${
+                  activeTab === tab.key
+                    ? "text-emerald-500"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-4 w-4 flex-shrink-0" />
+                <span>{tab.label}</span>
+                {activeTab === tab.key && (
+                  <span className="absolute inset-x-0 -bottom-px h-0.5 bg-emerald-500" />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Form */}
@@ -212,6 +360,7 @@ export default function ProjectModal({
           onSubmit={handleSubmit}
           className="flex-1 overflow-y-auto px-6 py-4 space-y-4"
         >
+          {/* BASIC TAB */}
           {activeTab === "basic" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Project Name */}
@@ -324,43 +473,60 @@ export default function ProjectModal({
             </div>
           )}
 
+          {/* TEAM TAB */}
           {activeTab === "team" && (
             <div className="space-y-3">
               <p className="text-xs text-muted">
                 Select one or more employees to assign them to this project
                 team.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                {employeeOptions.map((emp) => {
-                  const checked = teamMemberIds.includes(emp.id);
-                  return (
-                    <label
-                      key={emp.id}
-                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer ${
-                        checked
-                          ? "border-emerald-500 bg-emerald-500/10 text-emerald-500"
-                          : "border-border bg-muted text-foreground"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => handleTeamToggle(emp.id)}
-                        className="h-4 w-4 rounded border-border bg-background"
-                      />
-                      <span>{emp.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
+
               {teamMemberIds.length > 0 && (
-                <p className="text-xs text-muted">
-                  Selected: {teamMemberIds.map(getEmployeeName).join(", ")}
-                </p>
+                <div className="flex flex-wrap gap-2 pb-1">
+                  {teamMemberIds.map((id) => (
+                    <span
+                      key={id}
+                      className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-500"
+                    >
+                      {getEmployeeName(id)}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setTeamMemberIds((prev) =>
+                            prev.filter((x) => x !== id)
+                          )
+                        }
+                        className="text-[10px] leading-none"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
               )}
+
+              <Select
+                isMulti
+                options={employeeSelectOptions}
+                value={selectedTeamOptions}
+                onChange={(newValue) => {
+                  const arr = (newValue as MultiValue<EmployeeOption>) ?? [];
+                  const ids = arr.map((opt) => opt.value);
+                  setTeamMemberIds(ids);
+                }}
+                placeholder="Select team member(s)"
+                classNamePrefix="react-select"
+                styles={employeeSelectStyles}
+                isClearable={false}
+                components={{ ClearIndicator: () => null }}
+                menuPlacement="auto"
+                menuPosition="absolute"
+                menuShouldScrollIntoView={false}
+              />
             </div>
           )}
 
+          {/* BILLING TAB */}
           {activeTab === "billing" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
@@ -445,6 +611,7 @@ export default function ProjectModal({
             </div>
           )}
 
+          {/* ADVANCED TAB */}
           {activeTab === "advanced" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1 md:col-span-2">
@@ -511,26 +678,40 @@ export default function ProjectModal({
         </form>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-3">
-          <button
-            type="button"
-            onClick={resetAndClose}
-            className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              const form =
-                (e.currentTarget.parentElement
-                  ?.previousElementSibling as HTMLFormElement) || null;
-              form?.requestSubmit();
-            }}
-            className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
-          >
-            Save
-          </button>
+        <div className="flex items-center justify-between gap-3 border-t border-border px-6 py-3">
+          <div className="flex items-center gap-3">
+            {activeTab !== "basic" && (
+              <button
+                type="button"
+                onClick={goToPrevTab}
+                className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted"
+              >
+                Back
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={resetAndClose}
+              className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted"
+            >
+              Cancel
+            </button>
+            <button
+              type={isLastTab ? "submit" : "button"}
+              onClick={() => {
+                if (!isLastTab) {
+                  goToNextTab();
+                }
+                // when last tab, type="submit" triggers form submit
+              }}
+              className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+            >
+              {isLastTab ? "Save" : "Next"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
