@@ -4,7 +4,16 @@ import { useEffect, useMemo, useState, FormEvent } from "react";
 import { Task, initialTasks } from "@/lib/tasks";
 import { initialProjects } from "@/lib/projects";
 import { demoUsers } from "@/lib/users";
-import { ClipboardClock, CalendarRange, Timer } from "lucide-react";
+import {
+  ClipboardClock,
+  CalendarRange,
+  Timer,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+  PencilLine,
+  FileInput,
+} from "lucide-react";
 
 const employeesById = Object.fromEntries(demoUsers.map((u) => [u.id, u]));
 const projectsById = Object.fromEntries(initialProjects.map((p) => [p.id, p]));
@@ -68,14 +77,32 @@ function formatDayName(iso: string) {
     .toUpperCase();
 }
 
+// Helper to build a stable key per week (for submission lock)
+function getWeekKey(startISO: string, endISO: string) {
+  return `${startISO}_${endISO}`;
+}
+
 export default function EmployeeTimesheetPage() {
   const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(null);
   const [loadingEmployee, setLoadingEmployee] = useState(true);
+
   const [weekOffset, setWeekOffset] = useState(0);
+
   const [editedTasks, setEditedTasks] = useState<Task[] | null>(null);
-  const [editTarget, setEditTarget] = useState<{ taskId: number; date: string } | null>(null);
+  const [editTarget, setEditTarget] = useState<{
+    taskId: number;
+    date: string;
+  } | null>(null);
   const [editedHours, setEditedHours] = useState<string>("0");
   const [editedDescription, setEditedDescription] = useState<string>("");
+
+  // Track submitted weeks (by weekKey)
+  const [submittedWeeks, setSubmittedWeeks] = useState<Record<string, boolean>>(
+    {}
+  );
+
+  // Date-picker state (simple native input)
+  const [pickerDate, setPickerDate] = useState<string>("");
 
   useEffect(() => {
     try {
@@ -104,6 +131,9 @@ export default function EmployeeTimesheetPage() {
     );
     return getWeekRangeFromDate(base);
   }, [weekOffset]);
+
+  const weekKey = getWeekKey(startISO, endISO);
+  const isSubmitted = submittedWeeks[weekKey] === true;
 
   const baseEmployeeTasks = useMemo<Task[]>(
     () =>
@@ -142,7 +172,8 @@ export default function EmployeeTimesheetPage() {
     }, {})
   );
 
-  const employee = currentEmployeeId != null ? employeesById[currentEmployeeId] : undefined;
+  const employee =
+    currentEmployeeId != null ? employeesById[currentEmployeeId] : undefined;
 
   if (loadingEmployee) {
     return (
@@ -160,13 +191,17 @@ export default function EmployeeTimesheetPage() {
     );
   }
 
-  const openEditFor = (task: Task, date: string) => {
-    setEditTarget({ taskId: task.id, date });
-    const cellHours = hoursByTaskDay[task.id]?.[date] ?? 0;
-    setEditedHours(cellHours.toString());
-    const existing = weekTasks.find(
-      (t) => t.id === task.id && t.date === date
+  const openEditFor = (taskId: number, date: string) => {
+    if (isSubmitted) return; // lock week if submitted
+
+    setEditTarget({ taskId, date });
+
+    const matching = weekTasks.filter(
+      (t) => t.id === taskId && t.date === date
     );
+    const cellHours = matching.reduce((sum, t) => sum + t.workedHours, 0);
+    setEditedHours(cellHours.toString());
+    const existing = matching[0];
     setEditedDescription(existing?.description ?? "");
   };
 
@@ -178,7 +213,7 @@ export default function EmployeeTimesheetPage() {
 
   const handleSaveEdit = (e: FormEvent) => {
     e.preventDefault();
-    if (!editTarget) return;
+    if (!editTarget || isSubmitted) return;
     const { taskId, date } = editTarget;
     const newHours = Number(editedHours) || 0;
     const desc = editedDescription.trim() || undefined;
@@ -222,6 +257,56 @@ export default function EmployeeTimesheetPage() {
     closeEdit();
   };
 
+  const handleJumpToDate = (iso: string) => {
+    if (!iso) return;
+    const selected = new Date(iso);
+    const today = new Date();
+    const thisWeek = getWeekRangeFromDate(today);
+    const targetWeek = getWeekRangeFromDate(selected);
+
+    // compute difference in days between Mondays, then weekOffset
+    const baseMonday = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate()
+    );
+    const currentMonday = new Date(
+      baseMonday.getFullYear(),
+      baseMonday.getMonth(),
+      baseMonday.getDate() - ((baseMonday.getDay() + 6) % 7)
+    );
+    const targetMonday = new Date(
+      selected.getFullYear(),
+      selected.getMonth(),
+      selected.getDate() - ((selected.getDay() + 6) % 7)
+    );
+
+    const diffMs = targetMonday.getTime() - currentMonday.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    const offset = diffDays / 7;
+    setWeekOffset(offset);
+  };
+
+  const handleSubmitWeek = () => {
+    if (isSubmitted) return;
+    setSubmittedWeeks((prev) => ({
+      ...prev,
+      [weekKey]: true,
+    }));
+  };
+
+  // If there are no tasks in this week, show 3 placeholder rows with Edit
+  const rowsToRender =
+    tasksById.length > 0
+      ? tasksById.map((task) => ({
+          type: "task" as const,
+          task,
+        }))
+      : Array.from({ length: 3 }).map((_, index) => ({
+          type: "placeholder" as const,
+          placeholderId: -(index + 1),
+        }));
+
   return (
     <main className="space-y-4">
       {/* Header */}
@@ -240,27 +325,64 @@ export default function EmployeeTimesheetPage() {
           </div>
         </div>
 
-        <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-muted">
-          <button
-            type="button"
-            onClick={() => setWeekOffset((w) => w - 1)}
-            className="px-1 hover:text-emerald-500"
-          >
-            ◀
-          </button>
-          <div className="flex items-center gap-2">
-            <CalendarRange className="h-4 w-4 text-emerald-500" />
-            <span>
-              {formatDateShortWithYear(startISO)} –{" "}
-              {formatDateShortWithYear(endISO)}
-            </span>
+        <div className="flex flex-col items-end gap-2">
+          {/* Date range + picker */}
+          <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-muted">
+            <button
+              type="button"
+              onClick={() => setWeekOffset((w) => w - 1)}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full hover:bg-background/80 text-foreground"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-2">
+              <CalendarRange className="h-4 w-4 text-emerald-500" />
+              <span>
+                {formatDateShortWithYear(startISO)} –{" "}
+                {formatDateShortWithYear(endISO)}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setWeekOffset((w) => w + 1)}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full hover:bg-background/80 text-foreground"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+
+            {/* Date picker icon + hidden native date input */}
+            <label className="relative inline-flex items-center gap-1 cursor-pointer text-foreground">
+              <CalendarDays className="h-4 w-4 text-sky-500" />
+              <span className="hidden sm:inline text-[11px]">
+                Pick week
+              </span>
+              <input
+                type="date"
+                value={pickerDate}
+                onChange={(e) => {
+                  setPickerDate(e.target.value);
+                  handleJumpToDate(e.target.value);
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              />
+            </label>
           </div>
+
+          {/* Submit weekly timesheet */}
           <button
             type="button"
-            onClick={() => setWeekOffset((w) => w + 1)}
-            className="px-1 hover:text-emerald-500"
+            onClick={handleSubmitWeek}
+            disabled={isSubmitted}
+            className={`inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold shadow-sm ${
+              isSubmitted
+                ? "bg-emerald-500/10 text-emerald-500 cursor-default"
+                : "bg-emerald-500 text-slate-950 hover:bg-emerald-400"
+            }`}
           >
-            ▶
+            <FileInput className="h-3.5 w-3.5" />
+            {isSubmitted ? "Week Submitted" : "Submit Week"}
           </button>
         </div>
       </div>
@@ -298,7 +420,9 @@ export default function EmployeeTimesheetPage() {
           </span>
           <div>
             <p className="text-muted mb-1">Status</p>
-            <p className="text-xl font-semibold">Not Submitted</p>
+            <p className="text-xl font-semibold">
+              {isSubmitted ? "Submitted" : "Not Submitted"}
+            </p>
           </div>
         </div>
       </section>
@@ -321,49 +445,114 @@ export default function EmployeeTimesheetPage() {
                     </div>
                   </th>
                 ))}
+                <th className="px-2 py-3 font-medium text-center">
+                  Edit
+                </th>
                 <th className="px-4 py-3 font-medium text-right">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
-              {tasksById.map((task) => (
-                <tr key={task.id}>
-                  <td className="px-4 py-3">
-                    <p className="text-foreground">{task.name}</p>
-                    <p className="text-[11px] text-muted">
-                      {projectsById[task.projectId]?.name ?? task.projectName} •{" "}
-                      {task.status}
-                    </p>
-                  </td>
-                  {days.map((iso) => {
-                    const hours = hoursByTaskDay[task.id]?.[iso] ?? 0;
-                    return (
+              {rowsToRender.map((row) => {
+                if (row.type === "task") {
+                  const task = row.task;
+                  return (
+                    <tr key={task.id}>
+                      <td className="px-4 py-3">
+                        <p className="text-foreground">{task.name}</p>
+                        <p className="text-[11px] text-muted">
+                          {projectsById[task.projectId]?.name ??
+                            task.projectName}{" "}
+                          • {task.status}
+                        </p>
+                      </td>
+                      {days.map((iso) => {
+                        const hours = hoursByTaskDay[task.id]?.[iso] ?? 0;
+                        return (
+                          <td
+                            key={iso}
+                            className={`px-3 py-3 text-center text-foreground ${
+                              isSubmitted
+                                ? "cursor-default"
+                                : "cursor-pointer hover:bg-background/70"
+                            }`}
+                            onClick={() =>
+                              !isSubmitted && openEditFor(task.id, iso)
+                            }
+                          >
+                            {hours.toFixed(2)}
+                          </td>
+                        );
+                      })}
+                      <td className="px-2 py-3 text-center">
+                        <button
+                          type="button"
+                          disabled={isSubmitted}
+                          onClick={() =>
+                            !isSubmitted &&
+                            openEditFor(task.id, days[0])
+                          }
+                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-muted hover:bg-background ${
+                            isSubmitted
+                              ? "opacity-60 cursor-not-allowed"
+                              : "border-border"
+                          }`}
+                          title="Edit in timesheet"
+                        >
+                          <PencilLine className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 text-right text-foreground">
+                        {Object.values(hoursByTaskDay[task.id] || {})
+                          .reduce((sum, h) => sum + h, 0)
+                          .toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                }
+
+                // Placeholder rows: no tasks in this week
+                return (
+                  <tr key={row.placeholderId}>
+                    <td className="px-4 py-3">
+                      <p className="text-foreground text-sm">
+                        No task assigned
+                      </p>
+                      <p className="text-[11px] text-muted">
+                        Use edit to add hours.
+                      </p>
+                    </td>
+                    {days.map((iso) => (
                       <td
                         key={iso}
-                        className="px-3 py-3 text-center text-foreground cursor-pointer hover:bg-background/70"
-                        onClick={() => openEditFor(task, iso)}
+                        className="px-3 py-3 text-center text-muted"
                       >
-                        {hours.toFixed(2)}
+                        0.00
                       </td>
-                    );
-                  })}
-                  <td className="px-4 py-3 text-right text-foreground">
-                    {Object.values(hoursByTaskDay[task.id] || {})
-                      .reduce((sum, h) => sum + h, 0)
-                      .toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-
-              {tasksById.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={days.length + 2}
-                    className="px-4 py-8 text-center text-sm text-muted"
-                  >
-                    No tasks found for this week.
-                  </td>
-                </tr>
-              )}
+                    ))}
+                    <td className="px-2 py-3 text-center">
+                      <button
+                        type="button"
+                        disabled={isSubmitted}
+                        onClick={() =>
+                          !isSubmitted &&
+                          openEditFor(row.placeholderId, days[0])
+                        }
+                        className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-muted hover:bg-background ${
+                          isSubmitted
+                            ? "opacity-60 cursor-not-allowed"
+                            : "border-border"
+                        }`}
+                        title="Edit in timesheet"
+                      >
+                        <PencilLine className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-right text-foreground">
+                      0.00
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
 
             <tfoot className="bg-background/80 border-t border-border text-xs text-muted">
@@ -379,6 +568,7 @@ export default function EmployeeTimesheetPage() {
                     </td>
                   );
                 })}
+                <td className="px-2 py-3" />
                 <td className="px-4 py-3 text-right font-semibold text-foreground">
                   {totalWorkedWeek.toFixed(2)}
                 </td>
@@ -425,6 +615,7 @@ export default function EmployeeTimesheetPage() {
                   onChange={(e) => setEditedHours(e.target.value)}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
                   required
+                  disabled={isSubmitted}
                 />
               </div>
 
@@ -434,10 +625,13 @@ export default function EmployeeTimesheetPage() {
                 </label>
                 <textarea
                   value={editedDescription}
-                  onChange={(e) => setEditedDescription(e.target.value)}
+                  onChange={(e) =>
+                    setEditedDescription(e.target.value)
+                  }
                   rows={3}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 resize-y"
                   placeholder="Briefly describe what you did in this time."
+                  disabled={isSubmitted}
                 />
               </div>
 
@@ -449,12 +643,14 @@ export default function EmployeeTimesheetPage() {
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
-                >
-                  Save
-                </button>
+                {!isSubmitted && (
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+                  >
+                    Save
+                  </button>
+                )}
               </div>
             </form>
           </div>

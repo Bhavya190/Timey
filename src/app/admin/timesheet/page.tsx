@@ -100,6 +100,8 @@ type RowDraft = {
   rowId: number | null;
 };
 
+type PlaceholderState = Record<string, number[]>; // key = weekStartISO, value = row ids
+
 export default function AdminTimesheetPage() {
   const [currentAnchor, setCurrentAnchor] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -108,6 +110,7 @@ export default function AdminTimesheetPage() {
     () => getWeekRangeFromAnchor(currentAnchor),
     [currentAnchor]
   );
+  const weekKey = startISO; // unique id per week
   const todayISO = toLocalISODate(new Date());
 
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -395,7 +398,12 @@ export default function AdminTimesheetPage() {
   }, []);
 
   // ---------- placeholder rows + row editor ----------
-  const [placeholderRowIds, setPlaceholderRowIds] = useState<number[]>([]); // CHANGED
+  // map of weekKey -> placeholder row ids
+  const [placeholderRowsByWeek, setPlaceholderRowsByWeek] =
+    useState<PlaceholderState>({}); // [file:2]
+
+  const currentPlaceholderRowIds = placeholderRowsByWeek[weekKey] ?? [1, 2, 3];
+
   const [rowDraft, setRowDraft] = useState<RowDraft>({
     projectId: null,
     taskId: null,
@@ -403,17 +411,24 @@ export default function AdminTimesheetPage() {
   });
   const [showRowEditor, setShowRowEditor] = useState(false);
 
+  const setWeekPlaceholders = (week: string, updater: (prev: number[]) => number[]) => {
+    setPlaceholderRowsByWeek((prev) => {
+      const prevRows = prev[week] ?? [1, 2, 3];
+      return {
+        ...prev,
+        [week]: updater(prevRows),
+      };
+    });
+  };
+
   const removePlaceholderRow = (id: number) => {
-    setPlaceholderRowIds((prev) => prev.filter((r) => r !== id));
+    setWeekPlaceholders(weekKey, (prev) => prev.filter((r) => r !== id));
   };
 
   const openRowEditor = (rowId: number | null) => {
-    // CHANGED: when called with null (top Add row), create a placeholder row first
     if (rowId === null) {
       const newId = Date.now();
-      setPlaceholderRowIds((prev) =>
-        prev.includes(newId) ? prev : [...prev, newId]
-      );
+      setWeekPlaceholders(weekKey, (prev) => [...prev, newId]);
       setRowDraft({ projectId: null, taskId: null, rowId: newId });
     } else {
       setRowDraft({ projectId: null, taskId: null, rowId });
@@ -462,11 +477,15 @@ export default function AdminTimesheetPage() {
     setShowRowEditor(false);
 
     if (rowDraft.rowId !== null) {
-      setPlaceholderRowIds((prev) => prev.filter((id) => id !== rowDraft.rowId));
+      setWeekPlaceholders(weekKey, (prev) =>
+        prev.filter((id) => id !== rowDraft.rowId)
+      );
     }
   };
 
   const hasAnyTasksThisWeek = tasksById.length > 0;
+  const hasAnyTasksInRange = rangeTasks.length > 0;
+  const hasPlaceholdersThisWeek = currentPlaceholderRowIds.length > 0;
 
   return (
     <main className="space-y-4">
@@ -836,9 +855,10 @@ export default function AdminTimesheetPage() {
                 </tr>
               ))}
 
-              {/* Show empty placeholder rows only while there are NO tasks for this week */}
+              {/* Week specific placeholder rows */}
               {!hasAnyTasksThisWeek &&
-                placeholderRowIds.map((rowId) => (
+                hasPlaceholdersThisWeek &&
+                currentPlaceholderRowIds.map((rowId) => (
                   <tr key={rowId} className="border-t border-border">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -871,6 +891,18 @@ export default function AdminTimesheetPage() {
                     <td className="px-4 py-3" />
                   </tr>
                 ))}
+
+              {/* Global no-data message when no tasks anywhere and no placeholders in current week */}
+              {!hasAnyTasksInRange && !hasPlaceholdersThisWeek && (
+                <tr>
+                  <td
+                    className="px-4 py-6 text-center text-xs text-muted"
+                    colSpan={days.length + 2}
+                  >
+                    no tasks found
+                  </td>
+                </tr>
+              )}
             </tbody>
 
             {tasksById.length > 0 && (
