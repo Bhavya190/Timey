@@ -1,17 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState, FormEvent } from "react";
+import { useMemo, useState, useEffect, FormEvent } from "react";
 import { Task, initialTasks } from "@/lib/tasks";
 import { initialProjects } from "@/lib/projects";
 import { demoUsers } from "@/lib/users";
 import {
-  ClipboardClock,
   CalendarRange,
+  Clock4,
+  FileText,
   Timer,
   ChevronLeft,
   ChevronRight,
-  CalendarDays,
-  PencilLine,
+  Calendar,
+  Plus,
+  Edit3,
+  Trash2,
+  Save,
+  ClipboardClock,
   FileInput,
 } from "lucide-react";
 
@@ -25,11 +30,12 @@ function toLocalISODate(d: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function getWeekRangeFromDate(base: Date): {
+function getWeekRangeFromAnchor(anchor: Date): {
   days: string[];
   startISO: string;
   endISO: string;
 } {
+  const base = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
   const day = base.getDay();
   const diffToMonday = (day + 6) % 7;
   const monday = new Date(
@@ -77,32 +83,22 @@ function formatDayName(iso: string) {
     .toUpperCase();
 }
 
-// Helper to build a stable key per week (for submission lock)
-function getWeekKey(startISO: string, endISO: string) {
-  return `${startISO}_${endISO}`;
-}
+type EditTarget = {
+  taskId: number;
+  date: string;
+} | null;
+
+type RowDraft = {
+  projectId: number | null;
+  taskId: number | null;
+  rowId: number | null;
+};
+
+type PlaceholderState = Record<string, number[]>;
 
 export default function EmployeeTimesheetPage() {
   const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(null);
   const [loadingEmployee, setLoadingEmployee] = useState(true);
-
-  const [weekOffset, setWeekOffset] = useState(0);
-
-  const [editedTasks, setEditedTasks] = useState<Task[] | null>(null);
-  const [editTarget, setEditTarget] = useState<{
-    taskId: number;
-    date: string;
-  } | null>(null);
-  const [editedHours, setEditedHours] = useState<string>("0");
-  const [editedDescription, setEditedDescription] = useState<string>("");
-
-  // Track submitted weeks (by weekKey)
-  const [submittedWeeks, setSubmittedWeeks] = useState<Record<string, boolean>>(
-    {}
-  );
-
-  // Date-picker state (simple native input)
-  const [pickerDate, setPickerDate] = useState<string>("");
 
   useEffect(() => {
     try {
@@ -122,36 +118,54 @@ export default function EmployeeTimesheetPage() {
     }
   }, []);
 
-  const { days, startISO, endISO } = useMemo(() => {
-    const today = new Date();
-    const base = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate() + weekOffset * 7
-    );
-    return getWeekRangeFromDate(base);
-  }, [weekOffset]);
+  const [currentAnchor, setCurrentAnchor] = useState<Date>(new Date());
 
-  const weekKey = getWeekKey(startISO, endISO);
+  const { days, startISO, endISO } = useMemo(
+    () => getWeekRangeFromAnchor(currentAnchor),
+    [currentAnchor]
+  );
+  const weekKey = startISO;
+  const todayISO = toLocalISODate(new Date());
+
+  const [submittedWeeks, setSubmittedWeeks] = useState<Record<string, boolean>>(
+    {}
+  );
   const isSubmitted = submittedWeeks[weekKey] === true;
 
-  const baseEmployeeTasks = useMemo<Task[]>(
-    () =>
-      currentEmployeeId == null
-        ? []
-        : initialTasks.filter((t) => t.assigneeIds.includes(currentEmployeeId)),
-    [currentEmployeeId]
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    if (currentEmployeeId == null) return [];
+    return initialTasks.filter((t) => t.assigneeIds.includes(currentEmployeeId));
+  });
+
+  useEffect(() => {
+    if (currentEmployeeId == null) return;
+    setTasks(
+      initialTasks.filter((t) => t.assigneeIds.includes(currentEmployeeId))
+    );
+  }, [currentEmployeeId]);
+
+  const rangeStart = startISO;
+  const rangeEnd = endISO;
+
+  const rangeTasks: Task[] = useMemo(
+    () => tasks.filter((t) => t.date >= rangeStart && t.date <= rangeEnd),
+    [tasks, rangeStart, rangeEnd]
   );
 
-  const effectiveTasks = editedTasks ?? baseEmployeeTasks;
-
-  const weekTasks: Task[] = useMemo(
-    () =>
-      effectiveTasks.filter(
-        (t) => t.date >= startISO && t.date <= endISO
-      ),
-    [effectiveTasks, startISO, endISO]
+  const weekTasks = useMemo(
+    () => rangeTasks.filter((t) => t.date >= startISO && t.date <= endISO),
+    [rangeTasks, startISO, endISO]
   );
+
+  const displayTasks = useMemo(() => {
+    if (weekTasks.length > 0) {
+      return weekTasks.reduce<Record<number, Task>>((acc, t) => {
+        acc[t.id] = t;
+        return acc;
+      }, {});
+    }
+    return {};
+  }, [weekTasks]);
 
   const hoursByTaskDay: Record<number, Record<string, number>> = {};
   for (const t of weekTasks) {
@@ -160,17 +174,207 @@ export default function EmployeeTimesheetPage() {
       (hoursByTaskDay[t.id][t.date] ?? 0) + t.workedHours;
   }
 
-  const totalWorkedWeek = weekTasks.reduce(
+  const totalWorkedToday = rangeTasks
+    .filter((t) => t.date === todayISO)
+    .reduce((sum, t) => sum + t.workedHours, 0);
+
+  const totalWorkedRange = rangeTasks.reduce(
     (sum, t) => sum + t.workedHours,
     0
   );
 
-  const tasksById = Object.values(
-    weekTasks.reduce<Record<number, Task>>((acc, t) => {
-      acc[t.id] = t;
-      return acc;
-    }, {})
-  );
+  const tasksById = Object.values(displayTasks);
+
+  const [editTarget, setEditTarget] = useState<EditTarget>(null);
+  const [editedHours, setEditedHours] = useState<string>("0");
+  const [editedDescription, setEditedDescription] = useState<string>("");
+
+  const openEditFor = (task: Task, date: string) => {
+    if (isSubmitted) return;
+    const cellHours = hoursByTaskDay[task.id]?.[date] ?? 0;
+    setEditTarget({ taskId: task.id, date });
+    setEditedHours(cellHours.toString());
+    const existing = weekTasks.find(
+      (t) => t.id === task.id && t.date === date
+    );
+    setEditedDescription(existing?.description ?? "");
+  };
+
+  const closeEdit = () => {
+    setEditTarget(null);
+    setEditedHours("0");
+    setEditedDescription("");
+  };
+
+  const handleSaveEdit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!editTarget || isSubmitted) return;
+    const { taskId, date } = editTarget;
+    const newHours = Number(editedHours) || 0;
+    const desc = editedDescription.trim() || undefined;
+
+    const matching = tasks.filter(
+      (t) => t.id === taskId && t.date === date
+    );
+    if (matching.length === 0) {
+      const anyTask = tasks.find((t) => t.id === taskId);
+      if (!anyTask) {
+        closeEdit();
+        return;
+      }
+      const created: Task = {
+        ...anyTask,
+        date,
+        workedHours: newHours,
+        description: desc,
+      };
+      setTasks((prev) => [...prev, created]);
+      closeEdit();
+      return;
+    }
+
+    const currentTotal = matching.reduce(
+      (sum, t) => sum + t.workedHours,
+      0
+    );
+    const factor =
+      currentTotal > 0
+        ? newHours / currentTotal
+        : newHours / matching.length || 0;
+
+    const updatedTasks = tasks.map((t) => {
+      if (t.id !== taskId || t.date !== date) return t;
+      let newWorked = t.workedHours;
+      if (matching.length === 1) {
+        newWorked = newHours;
+      } else if (currentTotal > 0) {
+        newWorked = t.workedHours * factor;
+      } else {
+        newWorked = newHours / matching.length;
+      }
+      return {
+        ...t,
+        workedHours: newWorked,
+        description: desc,
+      };
+    });
+
+    setTasks(updatedTasks);
+    closeEdit();
+  };
+
+  const [placeholderRowsByWeek, setPlaceholderRowsByWeek] =
+    useState<PlaceholderState>({});
+
+  const currentPlaceholderRowIds = placeholderRowsByWeek[weekKey] ?? [1, 2, 3];
+
+  const [rowDraft, setRowDraft] = useState<RowDraft>({
+    projectId: null,
+    taskId: null,
+    rowId: null,
+  });
+  const [showRowEditor, setShowRowEditor] = useState(false);
+
+  const setWeekPlaceholders = (
+    week: string,
+    updater: (prev: number[]) => number[]
+  ) => {
+    setPlaceholderRowsByWeek((prev) => {
+      const prevRows = prev[week] ?? [1, 2, 3];
+      return {
+        ...prev,
+        [week]: updater(prevRows),
+      };
+    });
+  };
+
+  const removePlaceholderRow = (id: number) => {
+    setWeekPlaceholders(weekKey, (prev) => prev.filter((r) => r !== id));
+  };
+
+  const openRowEditor = (rowId: number | null) => {
+    if (isSubmitted) return;
+    if (rowId === null) {
+      const newId = Date.now();
+      setWeekPlaceholders(weekKey, (prev) => [...prev, newId]);
+      setRowDraft({ projectId: null, taskId: null, rowId: newId });
+    } else {
+      setRowDraft({ projectId: null, taskId: null, rowId });
+    }
+    setShowRowEditor(true);
+  };
+
+  const groupKey = (t: Task) => `${t.projectId}::${t.name}`;
+
+  const existingGroupKeysThisWeek = useMemo(() => {
+    const keys = new Set<string>();
+    weekTasks.forEach((t) => {
+      keys.add(groupKey(t));
+    });
+    return keys;
+  }, [weekTasks]);
+
+  const handleSaveRowDraft = () => {
+    if (!rowDraft.projectId || !rowDraft.taskId || currentEmployeeId == null)
+      return;
+
+    const project = projectsById[rowDraft.projectId];
+    const sourceTask = initialTasks.find((t) => t.id === rowDraft.taskId);
+
+    const key = `${project.id}::${sourceTask?.name ?? "New task"}`;
+    if (existingGroupKeysThisWeek.has(key)) {
+      setShowRowEditor(false);
+      return;
+    }
+
+    const baseId = Date.now();
+
+    const newTasks: Task[] = days.map((iso) => ({
+      id: baseId,
+      name: sourceTask?.name ?? "New task",
+      projectId: project.id,
+      projectName: project.name,
+      assigneeIds: [currentEmployeeId],
+      status: "Completed",
+      billingType: "billable",
+      date: iso,
+      workedHours: 0,
+      description: "",
+    }));
+
+    setTasks((prev) => [...prev, ...newTasks]);
+    setShowRowEditor(false);
+
+    if (rowDraft.rowId !== null) {
+      setWeekPlaceholders(weekKey, (prev) =>
+        prev.filter((id) => id !== rowDraft.rowId)
+      );
+    }
+  };
+
+  const hasAnyTasksThisWeek = tasksById.length > 0;
+  const hasAnyTasksInRange = rangeTasks.length > 0;
+  const hasPlaceholdersThisWeek = currentPlaceholderRowIds.length > 0;
+
+  const goPrevWeek = () => {
+    const d = new Date(currentAnchor);
+    d.setDate(d.getDate() - 7);
+    setCurrentAnchor(d);
+  };
+
+  const goNextWeek = () => {
+    const d = new Date(currentAnchor);
+    d.setDate(d.getDate() + 7);
+    setCurrentAnchor(d);
+  };
+
+  const handleSubmitWeek = () => {
+    if (isSubmitted) return;
+    setSubmittedWeeks((prev) => ({
+      ...prev,
+      [weekKey]: true,
+    }));
+  };
 
   const employee =
     currentEmployeeId != null ? employeesById[currentEmployeeId] : undefined;
@@ -191,130 +395,14 @@ export default function EmployeeTimesheetPage() {
     );
   }
 
-  const openEditFor = (taskId: number, date: string) => {
-    if (isSubmitted) return; // lock week if submitted
-
-    setEditTarget({ taskId, date });
-
-    const matching = weekTasks.filter(
-      (t) => t.id === taskId && t.date === date
-    );
-    const cellHours = matching.reduce((sum, t) => sum + t.workedHours, 0);
-    setEditedHours(cellHours.toString());
-    const existing = matching[0];
-    setEditedDescription(existing?.description ?? "");
-  };
-
-  const closeEdit = () => {
-    setEditTarget(null);
-    setEditedHours("0");
-    setEditedDescription("");
-  };
-
-  const handleSaveEdit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!editTarget || isSubmitted) return;
-    const { taskId, date } = editTarget;
-    const newHours = Number(editedHours) || 0;
-    const desc = editedDescription.trim() || undefined;
-
-    const sourceTasks = editedTasks ?? baseEmployeeTasks;
-    const matching = sourceTasks.filter(
-      (t) => t.id === taskId && t.date === date
-    );
-    if (matching.length === 0) {
-      closeEdit();
-      return;
-    }
-
-    const currentTotal = matching.reduce(
-      (sum, t) => sum + t.workedHours,
-      0
-    );
-    const factor =
-      currentTotal > 0
-        ? newHours / currentTotal
-        : newHours / matching.length || 0;
-
-    const updated = sourceTasks.map((t) => {
-      if (t.id !== taskId || t.date !== date) return t;
-      let newWorked = t.workedHours;
-      if (matching.length === 1) {
-        newWorked = newHours;
-      } else if (currentTotal > 0) {
-        newWorked = t.workedHours * factor;
-      } else {
-        newWorked = newHours / matching.length;
-      }
-      return {
-        ...t,
-        workedHours: newWorked,
-        description: desc,
-      };
-    });
-
-    setEditedTasks(updated);
-    closeEdit();
-  };
-
-  const handleJumpToDate = (iso: string) => {
-    if (!iso) return;
-    const selected = new Date(iso);
-    const today = new Date();
-    const thisWeek = getWeekRangeFromDate(today);
-    const targetWeek = getWeekRangeFromDate(selected);
-
-    // compute difference in days between Mondays, then weekOffset
-    const baseMonday = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate()
-    );
-    const currentMonday = new Date(
-      baseMonday.getFullYear(),
-      baseMonday.getMonth(),
-      baseMonday.getDate() - ((baseMonday.getDay() + 6) % 7)
-    );
-    const targetMonday = new Date(
-      selected.getFullYear(),
-      selected.getMonth(),
-      selected.getDate() - ((selected.getDay() + 6) % 7)
-    );
-
-    const diffMs = targetMonday.getTime() - currentMonday.getTime();
-    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-    const offset = diffDays / 7;
-    setWeekOffset(offset);
-  };
-
-  const handleSubmitWeek = () => {
-    if (isSubmitted) return;
-    setSubmittedWeeks((prev) => ({
-      ...prev,
-      [weekKey]: true,
-    }));
-  };
-
-  // If there are no tasks in this week, show 3 placeholder rows with Edit
-  const rowsToRender =
-    tasksById.length > 0
-      ? tasksById.map((task) => ({
-          type: "task" as const,
-          task,
-        }))
-      : Array.from({ length: 3 }).map((_, index) => ({
-          type: "placeholder" as const,
-          placeholderId: -(index + 1),
-        }));
-
   return (
     <main className="space-y-4">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
-            <ClipboardClock className="h-4 w-4" />
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary-500/10 text-primary-500">
+            <ClipboardClock className="h-5 w-5" />
+          </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
               My Timesheet
@@ -325,64 +413,47 @@ export default function EmployeeTimesheetPage() {
           </div>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
-          {/* Date range + picker */}
-          <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-muted">
-            <button
-              type="button"
-              onClick={() => setWeekOffset((w) => w - 1)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full hover:bg-background/80 text-foreground"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-
-            <div className="flex items-center gap-2">
-              <CalendarRange className="h-4 w-4 text-emerald-500" />
-              <span>
-                {formatDateShortWithYear(startISO)} –{" "}
-                {formatDateShortWithYear(endISO)}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setWeekOffset((w) => w + 1)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full hover:bg-background/80 text-foreground"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-
-            {/* Date picker icon + hidden native date input */}
-            <label className="relative inline-flex items-center gap-1 cursor-pointer text-foreground">
-              <CalendarDays className="h-4 w-4 text-sky-500" />
-              <span className="hidden sm:inline text-[11px]">
-                Pick week
-              </span>
-              <input
-                type="date"
-                value={pickerDate}
-                onChange={(e) => {
-                  setPickerDate(e.target.value);
-                  handleJumpToDate(e.target.value);
-                }}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-              />
-            </label>
-          </div>
-
-          {/* Submit weekly timesheet */}
+        {/* Week nav */}
+        <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground">
           <button
             type="button"
-            onClick={handleSubmitWeek}
-            disabled={isSubmitted}
-            className={`inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold shadow-sm ${
-              isSubmitted
-                ? "bg-emerald-500/10 text-emerald-500 cursor-default"
-                : "bg-emerald-500 text-slate-950 hover:bg-emerald-400"
-            }`}
+            onClick={goPrevWeek}
+            className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+            title="Previous week"
           >
-            <FileInput className="h-3.5 w-3.5" />
-            {isSubmitted ? "Week Submitted" : "Submit Week"}
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          <div className="flex items-center gap-2">
+            <span>
+              {formatDateShortWithYear(startISO)} –{" "}
+              {formatDateShortWithYear(endISO)}
+            </span>
+            <div className="relative">
+              <input
+                type="date"
+                value={startISO}
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const selectedDate = new Date(e.target.value);
+                  setCurrentAnchor(selectedDate);
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                aria-label="Select week date"
+              />
+              <div className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted hover:bg-card cursor-pointer pointer-events-none">
+                <Calendar className="h-3.5 w-3.5" />
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={goNextWeek}
+            className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+            title="Next week"
+          >
+            <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -396,7 +467,7 @@ export default function EmployeeTimesheetPage() {
           <div>
             <p className="text-muted mb-1">Total Week Hours</p>
             <p className="text-xl font-semibold">
-              {totalWorkedWeek.toFixed(2)} h
+              {totalWorkedRange.toFixed(2)} h
             </p>
           </div>
         </div>
@@ -427,13 +498,49 @@ export default function EmployeeTimesheetPage() {
         </div>
       </section>
 
-      {/* Timesheet table */}
+      {/* Weekly grid with header toolbar (Add row + Submit week) */}
       <section className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="border-b border-border px-4 py-2 bg-background/60 flex justify-between items-center">
+          <span className="text-xs text-muted">
+            Manage your timesheet rows for this week.
+          </span>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openRowEditor(null)}
+              disabled={isSubmitted}
+              className={`inline-flex items-center gap-1 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs ${
+                isSubmitted
+                  ? "text-muted opacity-60 cursor-not-allowed"
+                  : "text-muted hover:bg-card"
+              }`}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add row</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSubmitWeek}
+              disabled={isSubmitted}
+              className={`inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold shadow-sm ${
+                isSubmitted
+                  ? "bg-emerald-500/10 text-emerald-500 cursor-default"
+                  : "bg-emerald-500 text-slate-950 hover:bg-emerald-400"
+              }`}
+            >
+              <FileInput className="h-3.5 w-3.5" />
+              {isSubmitted ? "Week Submitted" : "Submit week"}
+            </button>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs sm:text-sm">
             <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
-                <th className="px-4 py-3 font-medium">Project – Task</th>
+                <th className="px-4 py-3 font-medium w-64">Project – Task</th>
                 {days.map((iso) => (
                   <th
                     key={iso}
@@ -445,145 +552,149 @@ export default function EmployeeTimesheetPage() {
                     </div>
                   </th>
                 ))}
-                <th className="px-2 py-3 font-medium text-center">
-                  Edit
-                </th>
-                <th className="px-4 py-3 font-medium text-right">Total</th>
+                <th className="px-4 py-3 font-medium text-right w-20">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
-              {rowsToRender.map((row) => {
-                if (row.type === "task") {
-                  const task = row.task;
-                  return (
-                    <tr key={task.id}>
-                      <td className="px-4 py-3">
-                        <p className="text-foreground">{task.name}</p>
-                        <p className="text-[11px] text-muted">
-                          {projectsById[task.projectId]?.name ??
-                            task.projectName}{" "}
-                          • {task.status}
-                        </p>
-                      </td>
-                      {days.map((iso) => {
-                        const hours = hoursByTaskDay[task.id]?.[iso] ?? 0;
-                        return (
-                          <td
-                            key={iso}
-                            className={`px-3 py-3 text-center text-foreground ${
-                              isSubmitted
-                                ? "cursor-default"
-                                : "cursor-pointer hover:bg-background/70"
-                            }`}
-                            onClick={() =>
-                              !isSubmitted && openEditFor(task.id, iso)
-                            }
-                          >
-                            {hours.toFixed(2)}
-                          </td>
-                        );
-                      })}
-                      <td className="px-2 py-3 text-center">
-                        <button
-                          type="button"
-                          disabled={isSubmitted}
-                          onClick={() =>
-                            !isSubmitted &&
-                            openEditFor(task.id, days[0])
-                          }
-                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-muted hover:bg-background ${
-                            isSubmitted
-                              ? "opacity-60 cursor-not-allowed"
-                              : "border-border"
-                          }`}
-                          title="Edit in timesheet"
-                        >
-                          <PencilLine className="h-3.5 w-3.5" />
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 text-right text-foreground">
-                        {Object.values(hoursByTaskDay[task.id] || {})
-                          .reduce((sum, h) => sum + h, 0)
-                          .toFixed(2)}
-                      </td>
-                    </tr>
-                  );
-                }
-
-                // Placeholder rows: no tasks in this week
-                return (
-                  <tr key={row.placeholderId}>
-                    <td className="px-4 py-3">
-                      <p className="text-foreground text-sm">
-                        No task assigned
-                      </p>
-                      <p className="text-[11px] text-muted">
-                        Use edit to add hours.
-                      </p>
-                    </td>
-                    {days.map((iso) => (
+              {tasksById.map((task) => (
+                <tr key={task.id}>
+                  <td className="px-4 py-3">
+                    <p className="text-foreground font-medium">{task.name}</p>
+                    <p className="text-[11px] text-muted inline-flex items-center gap-1 flex-wrap">
+                      <span>
+                        {projectsById[task.projectId]?.name ??
+                          task.projectName}
+                      </span>
+                      <span className="h-1 w-1 rounded-full bg-border" />
+                      <span>{task.status}</span>
+                    </p>
+                  </td>
+                  {days.map((iso) => {
+                    const hours = hoursByTaskDay[task.id]?.[iso] ?? 0;
+                    return (
                       <td
                         key={iso}
-                        className="px-3 py-3 text-center text-muted"
+                        className={`px-3 py-3 text-center text-foreground ${
+                          isSubmitted
+                            ? "cursor-default"
+                            : "cursor-pointer hover:bg-background/70"
+                        }`}
+                        onClick={() => !isSubmitted && openEditFor(task, iso)}
                       >
-                        0.00
+                        {hours.toFixed(2)}
+                      </td>
+                    );
+                  })}
+                  <td className="px-4 py-3 text-right text-foreground font-medium">
+                    {Object.values(hoursByTaskDay[task.id] || {})
+                      .reduce((sum, h) => sum + h, 0)
+                      .toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+
+              {!hasAnyTasksThisWeek &&
+                hasPlaceholdersThisWeek &&
+                currentPlaceholderRowIds.map((rowId) => (
+                  <tr key={rowId} className="border-t border-border">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openRowEditor(rowId)}
+                          disabled={isSubmitted}
+                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-muted ${
+                            isSubmitted
+                              ? "opacity-60 cursor-not-allowed border-border"
+                              : "border-border hover:bg-background"
+                          }`}
+                          title="Edit row"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            !isSubmitted && removePlaceholderRow(rowId)
+                          }
+                          disabled={isSubmitted}
+                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-muted ${
+                            isSubmitted
+                              ? "opacity-60 cursor-not-allowed border-border"
+                              : "border-border hover:bg-background"
+                          }`}
+                          title="Delete row"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                        <span className="text-xs text-muted">
+                          &lt; No project selected &gt;
+                        </span>
+                      </div>
+                    </td>
+                    {days.map((iso) => (
+                      <td key={iso} className="px-3 py-3">
+                        <div className="h-8 w-full rounded-lg border border-border bg-background" />
                       </td>
                     ))}
-                    <td className="px-2 py-3 text-center">
-                      <button
-                        type="button"
-                        disabled={isSubmitted}
-                        onClick={() =>
-                          !isSubmitted &&
-                          openEditFor(row.placeholderId, days[0])
-                        }
-                        className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-muted hover:bg-background ${
-                          isSubmitted
-                            ? "opacity-60 cursor-not-allowed"
-                            : "border-border"
-                        }`}
-                        title="Edit in timesheet"
-                      >
-                        <PencilLine className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-right text-foreground">
-                      0.00
-                    </td>
+                    <td className="px-4 py-3" />
                   </tr>
-                );
-              })}
+                ))}
+
+              {!hasAnyTasksInRange && !hasPlaceholdersThisWeek && (
+                <tr>
+                  <td
+                    className="px-4 py-6 text-center text-xs text-muted"
+                    colSpan={days.length + 2}
+                  >
+                    no tasks found
+                  </td>
+                </tr>
+              )}
             </tbody>
 
-            <tfoot className="bg-background/80 border-t border-border text-xs text-muted">
-              <tr>
-                <td className="px-4 py-3 font-medium">TOTAL</td>
-                {days.map((iso) => {
-                  const dayTotal = weekTasks
-                    .filter((t) => t.date === iso)
-                    .reduce((sum, t) => sum + t.workedHours, 0);
-                  return (
-                    <td key={iso} className="px-3 py-3 text-center">
-                      {dayTotal.toFixed(2)}
-                    </td>
-                  );
-                })}
-                <td className="px-2 py-3" />
-                <td className="px-4 py-3 text-right font-semibold text-foreground">
-                  {totalWorkedWeek.toFixed(2)}
-                </td>
-              </tr>
-            </tfoot>
+            {tasksById.length > 0 && (
+              <tfoot className="bg-background/80 border-t border-border text-xs text-muted">
+                <tr>
+                  <td className="px-4 py-3 font-medium">TOTAL HOURS</td>
+                  {days.map((iso) => {
+                    const dayTotal = tasksById.reduce((sum, task) => {
+                      const h = hoursByTaskDay[task.id]?.[iso] ?? 0;
+                      return sum + h;
+                    }, 0);
+                    return (
+                      <td key={iso} className="px-3 py-3 text-center">
+                        {dayTotal.toFixed(2)}
+                      </td>
+                    );
+                  })}
+                  <td className="px-4 py-3 text-right font-semibold text-foreground">
+                    {Object.values(hoursByTaskDay)
+                      .reduce((sumTask, dayMap) => {
+                        const taskTotal = Object.values(dayMap).reduce(
+                          (s, h) => s + h,
+                          0
+                        );
+                        return sumTask + taskTotal;
+                      }, 0)
+                      .toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </section>
 
-      {/* Edit modal */}
+      {/* Edit hours modal */}
       {editTarget && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
           <div className="w-full max-w-md rounded-2xl bg-card text-foreground shadow-2xl border border-border overflow-hidden">
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
-              <h2 className="text-sm font-semibold">Edit hours</h2>
+              <h2 className="text-sm font-semibold flex items-center gap-2">
+                <Clock4 className="h-4 w-4 text-primary-500" />
+                Edit hours
+              </h2>
               <button
                 onClick={closeEdit}
                 className="h-7 w-7 rounded-full border border-border text-muted hover:bg-background"
@@ -613,14 +724,15 @@ export default function EmployeeTimesheetPage() {
                   step={0.25}
                   value={editedHours}
                   onChange={(e) => setEditedHours(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/40"
                   required
                   disabled={isSubmitted}
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
+                <label className="text-xs font-medium text-foreground flex items-center gap-1">
+                  <FileText className="h-3.5 w-3.5 text-primary-500" />
                   Description of work
                 </label>
                 <textarea
@@ -629,8 +741,8 @@ export default function EmployeeTimesheetPage() {
                     setEditedDescription(e.target.value)
                   }
                   rows={3}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 resize-y"
-                  placeholder="Briefly describe what you did in this time."
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/40 resize-y"
+                  placeholder="Briefly describe what was done in this time."
                   disabled={isSubmitted}
                 />
               </div>
@@ -646,11 +758,116 @@ export default function EmployeeTimesheetPage() {
                 {!isSubmitted && (
                   <button
                     type="submit"
-                    className="rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+                    className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-4 py-1.5 text-xs text-foreground hover:bg-card"
                   >
-                    Save
+                    <Clock4 className="h-3.5 w-3.5" />
+                    <span>Save</span>
                   </button>
                 )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Update Timesheet (row editor) */}
+      {showRowEditor && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
+          <div className="w-full max-w-lg rounded-2xl bg-card text-foreground shadow-2xl border border-border overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <h2 className="text-sm font-semibold">Update Timesheet</h2>
+              <button
+                type="button"
+                onClick={() => setShowRowEditor(false)}
+                className="h-7 w-7 rounded-full border border-border text-muted hover:bg-background"
+              >
+                ×
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveRowDraft();
+              }}
+            >
+              <div className="px-5 py-4 space-y-4 text-sm">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Project Name
+                  </label>
+                  <select
+                    value={rowDraft.projectId ?? ""}
+                    onChange={(e) =>
+                      setRowDraft((prev) => ({
+                        ...prev,
+                        projectId: e.target.value
+                          ? Number(e.target.value)
+                          : null,
+                        taskId: null,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/40"
+                    required
+                  >
+                    <option value="">Select Project</option>
+                    {initialProjects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Task Name
+                  </label>
+                  <select
+                    value={rowDraft.taskId ?? ""}
+                    onChange={(e) =>
+                      setRowDraft((prev) => ({
+                        ...prev,
+                        taskId: e.target.value
+                          ? Number(e.target.value)
+                          : null,
+                      }))
+                    }
+                    disabled={rowDraft.projectId === null}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none disabled:opacity-60 focus:border-primary-500 focus:ring-1 focus:ring-primary-500/40"
+                    required
+                  >
+                    <option value="">Select Task</option>
+                    {rowDraft.projectId !== null &&
+                      initialTasks
+                        .filter(
+                          (t) => t.projectId === rowDraft.projectId
+                        )
+                        .map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-border bg-background/60 px-5 py-3">
+                <button
+                  type="submit"
+                  disabled={isSubmitted}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-4 py-1.5 text-xs text-foreground hover:bg-card disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  <span>Save</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRowEditor(false)}
+                  className="rounded-lg border border-border bg-background px-4 py-1.5 text-xs text-foreground hover:bg-card"
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>
