@@ -15,6 +15,13 @@ import {
   Filter,
   Users,
   Briefcase,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  Plus,
+  Edit3,
+  Trash2,
+  Save,
 } from "lucide-react";
 
 const employeesById = Object.fromEntries(demoUsers.map((u) => [u.id, u]));
@@ -82,8 +89,20 @@ function formatDayName(iso: string) {
 
 type DateRangeFilter = "today" | "this_week" | "this_month" | "custom";
 
+type EditTarget = {
+  taskId: number;
+  date: string;
+} | null;
+
+type RowDraft = {
+  projectId: number | null;
+  taskId: number | null;
+  rowId: number | null;
+};
+
 export default function AdminTimesheetPage() {
   const [currentAnchor, setCurrentAnchor] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const { days, startISO, endISO } = useMemo(
     () => getWeekRangeFromAnchor(currentAnchor),
@@ -100,7 +119,9 @@ export default function AdminTimesheetPage() {
     useState<DateRangeFilter>("this_week");
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
-  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | "pdf">("csv");
+  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | "pdf">(
+    "csv"
+  );
 
   const { rangeStart, rangeEnd } = useMemo(() => {
     const now = new Date();
@@ -147,6 +168,16 @@ export default function AdminTimesheetPage() {
     [rangeTasks, startISO, endISO]
   );
 
+  const displayTasks = useMemo(() => {
+    if (weekTasks.length > 0) {
+      return weekTasks.reduce<Record<number, Task>>((acc, t) => {
+        acc[t.id] = t;
+        return acc;
+      }, {});
+    }
+    return {};
+  }, [weekTasks]);
+
   const hoursByTaskDay: Record<number, Record<string, number>> = {};
   for (const t of weekTasks) {
     if (!hoursByTaskDay[t.id]) hoursByTaskDay[t.id] = {};
@@ -171,12 +202,7 @@ export default function AdminTimesheetPage() {
     .filter((t) => t.billingType === "non-billable")
     .reduce((sum, t) => sum + t.workedHours, 0);
 
-  const tasksById = Object.values(
-    weekTasks.reduce<Record<number, Task>>((acc, t) => {
-      acc[t.id] = t;
-      return acc;
-    }, {})
-  );
+  const tasksById = Object.values(displayTasks);
 
   const exportRows = useMemo(
     () =>
@@ -254,11 +280,6 @@ export default function AdminTimesheetPage() {
     return `${names[0]}, ${names[1]} +${names.length - 2} more`;
   };
 
-  type EditTarget = {
-    taskId: number;
-    date: string;
-  } | null;
-
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
   const [editedHours, setEditedHours] = useState<string>("0");
   const [editedDescription, setEditedDescription] = useState<string>("");
@@ -290,6 +311,18 @@ export default function AdminTimesheetPage() {
       (t) => t.id === taskId && t.date === date
     );
     if (matching.length === 0) {
+      const anyTask = tasks.find((t) => t.id === taskId);
+      if (!anyTask) {
+        closeEdit();
+        return;
+      }
+      const created: Task = {
+        ...anyTask,
+        date,
+        workedHours: newHours,
+        description: desc,
+      };
+      setTasks((prev) => [...prev, created]);
       closeEdit();
       return;
     }
@@ -339,12 +372,108 @@ export default function AdminTimesheetPage() {
     setCurrentAnchor(d);
   };
 
+  const handleDatePickerChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (e.target.value) {
+      const selectedDate = new Date(e.target.value);
+      setCurrentAnchor(selectedDate);
+      setShowDatePicker(false);
+    }
+  };
+
+  const tasksByProject = useMemo(() => {
+    const map: Record<number, { id: number; name: string }[]> = {};
+    initialTasks.forEach((t) => {
+      if (!t.projectId) return;
+      if (!map[t.projectId]) map[t.projectId] = [];
+      if (!map[t.projectId].some((x) => x.name === t.name)) {
+        map[t.projectId].push({ id: t.id, name: t.name });
+      }
+    });
+    return map;
+  }, []);
+
+  // ---------- placeholder rows + row editor ----------
+  const [placeholderRowIds, setPlaceholderRowIds] = useState<number[]>([]); // CHANGED
+  const [rowDraft, setRowDraft] = useState<RowDraft>({
+    projectId: null,
+    taskId: null,
+    rowId: null,
+  });
+  const [showRowEditor, setShowRowEditor] = useState(false);
+
+  const removePlaceholderRow = (id: number) => {
+    setPlaceholderRowIds((prev) => prev.filter((r) => r !== id));
+  };
+
+  const openRowEditor = (rowId: number | null) => {
+    // CHANGED: when called with null (top Add row), create a placeholder row first
+    if (rowId === null) {
+      const newId = Date.now();
+      setPlaceholderRowIds((prev) =>
+        prev.includes(newId) ? prev : [...prev, newId]
+      );
+      setRowDraft({ projectId: null, taskId: null, rowId: newId });
+    } else {
+      setRowDraft({ projectId: null, taskId: null, rowId });
+    }
+    setShowRowEditor(true);
+  };
+
+  const groupKey = (t: Task) => `${t.projectId}::${t.name}`;
+
+  const existingGroupKeysThisWeek = useMemo(() => {
+    const keys = new Set<string>();
+    weekTasks.forEach((t) => {
+      keys.add(groupKey(t));
+    });
+    return keys;
+  }, [weekTasks]);
+
+  const handleSaveRowDraft = () => {
+    if (!rowDraft.projectId || !rowDraft.taskId) return;
+
+    const project = projectsById[rowDraft.projectId];
+    const sourceTask = initialTasks.find((t) => t.id === rowDraft.taskId);
+
+    const key = `${project.id}::${sourceTask?.name ?? "New task"}`;
+    if (existingGroupKeysThisWeek.has(key)) {
+      setShowRowEditor(false);
+      return;
+    }
+
+    const baseId = Date.now();
+
+    const newTasks: Task[] = days.map((iso) => ({
+      id: baseId,
+      name: sourceTask?.name ?? "New task",
+      projectId: project.id,
+      projectName: project.name,
+      assigneeIds: [employeeOptions[0]?.id || 1],
+      status: "Completed",
+      billingType: "billable",
+      date: iso,
+      workedHours: 0,
+      description: "",
+    }));
+
+    setTasks((prev) => [...prev, ...newTasks]);
+    setShowRowEditor(false);
+
+    if (rowDraft.rowId !== null) {
+      setPlaceholderRowIds((prev) => prev.filter((id) => id !== rowDraft.rowId));
+    }
+  };
+
+  const hasAnyTasksThisWeek = tasksById.length > 0;
+
   return (
     <main className="space-y-4">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary-500/10 text-primary-500">
             <CalendarRange className="h-5 w-5" />
           </div>
           <div>
@@ -362,20 +491,42 @@ export default function AdminTimesheetPage() {
             <button
               type="button"
               onClick={goPrevWeek}
-              className="px-1.5 py-0.5 rounded-lg hover:bg-background/80"
+              className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+              title="Previous week"
             >
-              ◀
+              <ChevronLeft className="h-4 w-4" />
             </button>
-            <span>
-              {formatDateShortWithYear(startISO)} –{" "}
-              {formatDateShortWithYear(endISO)}
-            </span>
+
+            <div className="flex items-center gap-2">
+              <span>
+                {formatDateShortWithYear(startISO)} –{" "}
+                {formatDateShortWithYear(endISO)}
+              </span>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={startISO}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    const selectedDate = new Date(e.target.value);
+                    setCurrentAnchor(selectedDate);
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  aria-label="Select week date"
+                />
+                <div className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted hover:bg-card cursor-pointer pointer-events-none">
+                  <Calendar className="h-3.5 w-3.5" />
+                </div>
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={goNextWeek}
-              className="px-1.5 py-0.5 rounded-lg hover:bg-background/80"
+              className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+              title="Next week"
             >
-              ▶
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -528,7 +679,7 @@ export default function AdminTimesheetPage() {
       {/* Stats */}
       <section className="grid gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-border bg-card px-4 py-3 text-xs flex items-center gap-3">
-          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background text-emerald-500">
+          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background text-primary-500">
             <Clock4 className="h-4 w-4" />
           </div>
           <div>
@@ -540,7 +691,7 @@ export default function AdminTimesheetPage() {
         </div>
 
         <div className="rounded-xl border border-border bg-card px-4 py-3 text-xs flex items-center gap-3">
-          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background text-emerald-500">
+          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background text-primary-500">
             <Timer className="h-4 w-4" />
           </div>
           <div>
@@ -552,7 +703,7 @@ export default function AdminTimesheetPage() {
         </div>
 
         <div className="rounded-xl border border-border bg-card px-4 py-3 text-xs flex items-center gap-3">
-          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background text-emerald-500">
+          <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background text-primary-500">
             <BadgeDollarSign className="h-4 w-4" />
           </div>
           <div>
@@ -592,7 +743,6 @@ export default function AdminTimesheetPage() {
             <option value="pdf">PDF</option>
           </select>
         </div>
-
         <button
           onClick={handleExport}
           className="inline-flex items-center gap-1 rounded-lg border border-emerald-600 bg-emerald-500/90 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
@@ -613,11 +763,23 @@ export default function AdminTimesheetPage() {
 
       {/* Weekly grid with totals footer */}
       <section className="rounded-2xl border border-border bg-card overflow-hidden">
+        {/* Add row button – always usable */}
+        <div className="border-b border-border px-4 py-2 bg-background/60 flex justify-end">
+          <button
+            type="button"
+            onClick={() => openRowEditor(null)}
+            className="inline-flex items-center gap-1 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs text-muted hover:bg-card"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Add row</span>
+          </button>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs sm:text-sm">
             <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
-                <th className="px-4 py-3 font-medium">Project – Task</th>
+                <th className="px-4 py-3 font-medium w-64">Project – Task</th>
                 {days.map((iso) => (
                   <th
                     key={iso}
@@ -629,16 +791,19 @@ export default function AdminTimesheetPage() {
                     </div>
                   </th>
                 ))}
-                <th className="px-4 py-3 font-medium text-right">Total</th>
+                <th className="px-4 py-3 font-medium text-right w-20">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
               {tasksById.map((task) => (
                 <tr key={task.id}>
                   <td className="px-4 py-3">
-                    <p className="text-foreground">{task.name}</p>
+                    <p className="text-foreground font-medium">{task.name}</p>
                     <p className="text-[11px] text-muted inline-flex items-center gap-1 flex-wrap">
-                      <span>{projectsById[task.projectId]?.name ?? task.projectName}</span>
+                      <span>
+                        {projectsById[task.projectId]?.name ??
+                          task.projectName}
+                      </span>
                       <span className="h-1 w-1 rounded-full bg-border" />
                       <span>{task.status}</span>
                       <span className="h-1 w-1 rounded-full bg-border" />
@@ -653,22 +818,17 @@ export default function AdminTimesheetPage() {
                   </td>
                   {days.map((iso) => {
                     const hours = hoursByTaskDay[task.id]?.[iso] ?? 0;
-                    const canEdit = true;
                     return (
                       <td
                         key={iso}
-                        className={`px-3 py-3 text-center text-foreground ${
-                          canEdit
-                            ? "cursor-pointer hover:bg-background/70"
-                            : ""
-                        }`}
-                        onClick={() => canEdit && openEditFor(task, iso)}
+                        className="px-3 py-3 text-center text-foreground cursor-pointer hover:bg-background/70"
+                        onClick={() => openEditFor(task, iso)}
                       >
                         {hours.toFixed(2)}
                       </td>
                     );
                   })}
-                  <td className="px-4 py-3 text-right text-foreground">
+                  <td className="px-4 py-3 text-right text-foreground font-medium">
                     {Object.values(hoursByTaskDay[task.id] || {})
                       .reduce((sum, h) => sum + h, 0)
                       .toFixed(2)}
@@ -676,19 +836,43 @@ export default function AdminTimesheetPage() {
                 </tr>
               ))}
 
-              {tasksById.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={days.length + 2}
-                    className="px-4 py-8 text-center text-sm text-muted"
-                  >
-                    No tasks found for this week with current filters.
-                  </td>
-                </tr>
-              )}
+              {/* Show empty placeholder rows only while there are NO tasks for this week */}
+              {!hasAnyTasksThisWeek &&
+                placeholderRowIds.map((rowId) => (
+                  <tr key={rowId} className="border-t border-border">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openRowEditor(rowId)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted hover:bg-background"
+                          title="Edit row"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removePlaceholderRow(rowId)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted hover:bg-background"
+                          title="Delete row"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                        <span className="text-xs text-muted">
+                          &lt; No project selected &gt;
+                        </span>
+                      </div>
+                    </td>
+                    {days.map((iso) => (
+                      <td key={iso} className="px-3 py-3">
+                        <div className="h-8 w-full rounded-lg border border-border bg-background" />
+                      </td>
+                    ))}
+                    <td className="px-4 py-3" />
+                  </tr>
+                ))}
             </tbody>
 
-            {/* Totals footer */}
             {tasksById.length > 0 && (
               <tfoot className="bg-background/80 border-t border-border text-xs text-muted">
                 <tr>
@@ -722,13 +906,13 @@ export default function AdminTimesheetPage() {
         </div>
       </section>
 
-      {/* Edit modal */}
+      {/* Edit hours modal */}
       {editTarget && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
           <div className="w-full max-w-md rounded-2xl bg-card text-foreground shadow-2xl border border-border overflow-hidden">
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <h2 className="text-sm font-semibold flex items-center gap-2">
-                <Clock4 className="h-4 w-4 text-emerald-500" />
+                <Clock4 className="h-4 w-4 text-primary-500" />
                 Edit hours
               </h2>
               <button
@@ -760,14 +944,14 @@ export default function AdminTimesheetPage() {
                   step={0.25}
                   value={editedHours}
                   onChange={(e) => setEditedHours(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/40"
                   required
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-medium text-foreground flex items-center gap-1">
-                  <FileText className="h-3.5 w-3.5 text-emerald-500" />
+                  <FileText className="h-3.5 w-3.5 text-primary-500" />
                   Description of work
                 </label>
                 <textarea
@@ -776,7 +960,7 @@ export default function AdminTimesheetPage() {
                     setEditedDescription(e.target.value)
                   }
                   rows={3}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 resize-y"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/40 resize-y"
                   placeholder="Briefly describe what was done in this time."
                 />
               </div>
@@ -791,10 +975,112 @@ export default function AdminTimesheetPage() {
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-4 py-1.5 text-xs text-foreground hover:bg-card"
                 >
                   <Clock4 className="h-3.5 w-3.5" />
                   <span>Save</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showRowEditor && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
+          <div className="w-full max-w-lg rounded-2xl bg-card text-foreground shadow-2xl border border-border overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <h2 className="text-sm font-semibold">Update Timesheet</h2>
+              <button
+                type="button"
+                onClick={() => setShowRowEditor(false)}
+                className="h-7 w-7 rounded-full border border-border text-muted hover:bg-background"
+              >
+                ×
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveRowDraft();
+              }}
+            >
+              <div className="px-5 py-4 space-y-4 text-sm">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Project Name
+                  </label>
+                  <select
+                    value={rowDraft.projectId ?? ""}
+                    onChange={(e) =>
+                      setRowDraft((prev) => ({
+                        ...prev,
+                        projectId: e.target.value
+                          ? Number(e.target.value)
+                          : null,
+                        taskId: null,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/40"
+                    required
+                  >
+                    <option value="">Select Project</option>
+                    {initialProjects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Task Name
+                  </label>
+                  <select
+                    value={rowDraft.taskId ?? ""}
+                    onChange={(e) =>
+                      setRowDraft((prev) => ({
+                        ...prev,
+                        taskId: e.target.value
+                          ? Number(e.target.value)
+                          : null,
+                      }))
+                    }
+                    disabled={rowDraft.projectId === null}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none disabled:opacity-60 focus:border-primary-500 focus:ring-1 focus:ring-primary-500/40"
+                    required
+                  >
+                    <option value="">Select Task</option>
+                    {rowDraft.projectId !== null &&
+                      (
+                        initialTasks.filter(
+                          (t) => t.projectId === rowDraft.projectId
+                        ) ?? []
+                      ).map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-border bg-background/60 px-5 py-3">
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-4 py-1.5 text-xs text-foreground hover:bg-card"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  <span>Save</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRowEditor(false)}
+                  className="rounded-lg border border-border bg-background px-4 py-1.5 text-xs text-foreground hover:bg-card"
+                >
+                  Cancel
                 </button>
               </div>
             </form>
