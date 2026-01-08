@@ -153,7 +153,7 @@ export const initialProjects: Project[] = [
     defaultBillingRate: "90",
     description:
       "Migrate legacy patient data to new cloud platform.",
-    teamMemberIds: [4],
+    teamMemberIds: [4, 19],
   },
   {
     id: 9,
@@ -169,7 +169,7 @@ export const initialProjects: Project[] = [
     defaultBillingRate: "50",
     description:
       "Ongoing maintenance and minor enhancements for existing systems.",
-    teamMemberIds: [2],
+    teamMemberIds: [2, 19],
   },
   {
     id: 10,
@@ -304,7 +304,7 @@ export const initialProjects: Project[] = [
     estimatedCost: "38000",
     description:
       "Automated regulatory reports with audit trails and scheduled exports.",
-    teamMemberIds: [4, 6, 10, 13, 18, 21],
+    teamMemberIds: [4, 6, 10, 13, 18, 21, 20],
   },
   {
     id: 18,
@@ -321,7 +321,7 @@ export const initialProjects: Project[] = [
     estimatedCost: "50000",
     description:
       "Video consultations, e-prescriptions, and patient follow-up workflows.",
-    teamMemberIds: [3, 7, 11, 14, 16, 19],
+    teamMemberIds: [3, 7, 11, 14, 16, 19, 20],
   },
   {
     id: 19,
