@@ -87,6 +87,12 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
     notFound();
   }
 
+  const totalWorkedHours = employeeTasksForProject.reduce(
+    (sum, task) => sum + task.workedHours,
+    0
+  );
+  const totalTasks = employeeTasksForProject.length;
+
   return (
     <div className="space-y-4">
       {/* Header with icon */}
@@ -105,7 +111,7 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
       </div>
 
       {/* Project info */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-5">
         <div className="rounded-xl border border-border bg-card p-4 flex items-start gap-3">
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/10 text-sky-500">
             <BadgeInfo className="h-4 w-4" />
@@ -151,21 +157,44 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
             </p>
           </div>
         </div>
+
+        {/* Total tasks summary card */}
+        <div className="rounded-xl border border-border bg-card p-4 flex items-start gap-3">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-purple-500/10 text-purple-500">
+            <ListChecks className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-xs text-muted">Total tasks</p>
+            <p className="mt-1 text-sm text-foreground">
+              {totalTasks}
+            </p>
+          </div>
+        </div>
+
+        {/* Total hours summary card */}
+        <div className="rounded-xl border border-border bg-card p-4 flex items-start gap-3">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+            <Clock3 className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-xs text-muted">Total hours</p>
+            <p className="mt-1 text-sm text-foreground">
+              {totalWorkedHours.toFixed(2)}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Tasks table */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3 text-xs text-muted">
+        {/* <div className="flex items-center justify-between border-b border-border px-4 py-3 text-xs text-muted">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-purple-500/10 text-purple-500">
               <ListChecks className="h-4 w-4" />
             </span>
-            <span className="font-medium text-foreground">
-              {employeeTasksForProject.length}
-            </span>
-            <span>tasks assigned to you</span>
+            <span>Tasks assigned to you</span>
           </div>
-        </div>
+        </div> */}
 
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs sm:text-sm">
