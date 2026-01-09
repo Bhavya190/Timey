@@ -13,7 +13,10 @@ import {
   User,
   CheckCircle2,
   CircleDot,
-} from "lucide-react";
+  Calendar, // using plain calendar icon
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react"; // [web:8]
 
 const employeesById = Object.fromEntries(demoUsers.map((u) => [u.id, u]));
 
@@ -27,11 +30,43 @@ function formatHumanDate(iso: string) {
   });
 }
 
+type DateRange = {
+  start: string; // YYYY-MM-DD
+  end: string;   // YYYY-MM-DD
+};
+
+function toISODate(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+// Monday–Sunday week
+function getWeekRange(base: Date = new Date()): DateRange {
+  const day = base.getDay(); // 0 = Sun ... 6 = Sat [web:48]
+  const diffToMonday = base.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(base);
+  monday.setDate(diffToMonday);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return {
+    start: toISODate(monday),
+    end: toISODate(sunday),
+  };
+}
+
+function addWeeks(dateStr: string, n: number) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + n * 7);
+  return d;
+}
+
 export default function EmployeeTasksPage() {
   const router = useRouter();
 
   const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(null);
   const [loadingEmployee, setLoadingEmployee] = useState(true);
+
+  // date range for "this week" control
+  const [dateRange, setDateRange] = useState<DateRange>(() => getWeekRange());
 
   useEffect(() => {
     try {
@@ -51,6 +86,7 @@ export default function EmployeeTasksPage() {
     }
   }, []);
 
+  // All tasks for this employee (unfiltered by week)
   const employeeInitialTasks = useMemo(
     () =>
       currentEmployeeId == null
@@ -59,7 +95,19 @@ export default function EmployeeTasksPage() {
     [currentEmployeeId]
   );
 
-  const [tasks, setTasks] = useState<Task[]>(employeeInitialTasks);
+  // Filter by selected week range
+  const filteredTasksByWeek = useMemo(() => {
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    end.setHours(23, 59, 59, 999);
+
+    return employeeInitialTasks.filter((t) => {
+      const taskDate = new Date(t.date);
+      return taskDate >= start && taskDate <= end;
+    });
+  }, [employeeInitialTasks, dateRange]);
+
+  const [tasks, setTasks] = useState<Task[]>(filteredTasksByWeek);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -67,9 +115,27 @@ export default function EmployeeTasksPage() {
   const [editedHours, setEditedHours] = useState<string>("0");
   const [editedDescription, setEditedDescription] = useState<string>("");
 
+  // keep tasks in sync with filters
   useEffect(() => {
-    setTasks(employeeInitialTasks);
-  }, [employeeInitialTasks]);
+    setTasks(filteredTasksByWeek);
+  }, [filteredTasksByWeek]);
+
+  const totalHours = useMemo(
+    () => tasks.reduce((sum, t) => sum + t.workedHours, 0),
+    [tasks]
+  );
+  const totalTasks = tasks.length;
+
+  // Week navigation
+  const handlePrevWeek = () => {
+    const newBase = addWeeks(dateRange.start, -1);
+    setDateRange(getWeekRange(newBase));
+  };
+
+  const handleNextWeek = () => {
+    const newBase = addWeeks(dateRange.start, 1);
+    setDateRange(getWeekRange(newBase));
+  };
 
   const toggleMenu = (id: number) => {
     setOpenMenuId((prev) => (prev === id ? null : id));
@@ -173,17 +239,71 @@ export default function EmployeeTasksPage() {
             Tasks assigned to you, from all projects.
           </p>
         </div>
+
+        {/* This week card with prev/next + calendar */}
+        <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground">
+          <button
+            type="button"
+            onClick={handlePrevWeek}
+            className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-background"
+          >
+            <ChevronLeft className="h-3 w-3" />
+          </button>
+
+          <div className="flex items-center gap-2">
+            
+            <span>
+              {formatHumanDate(dateRange.start)} &ndash;{" "}
+              {formatHumanDate(dateRange.end)}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            // hook this to a real datepicker if you want manual selection
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background hover:bg-card"
+          >
+            <Calendar className="h-3.5 w-3.5 text-muted" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleNextWeek}
+            className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-background"
+          >
+            <ChevronRight className="h-3 w-3" />
+          </button>
+        </div>
       </div>
+
+      {/* Summary cards */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-border bg-card px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-muted">Total hours (week)</p>
+            <p className="text-lg font-semibold text-foreground">
+              {totalHours.toFixed(2)}
+            </p>
+          </div>
+          <Clock className="h-5 w-5 text-emerald-500" />
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-muted">Total tasks (week)</p>
+            <p className="text-lg font-semibold text-foreground">
+              {totalTasks}
+            </p>
+          </div>
+          <CheckCircle2 className="h-5 w-5 text-sky-500" />
+        </div>
+      </div>
+
+      {/* TODO: Hook your charts to the same filtered data */}
+      {/* Example: <MyCharts tasks={tasks} dateRange={dateRange} /> */}
 
       {/* Table wrapper */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-border p-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <span className="font-medium text-foreground">{tasks.length}</span>
-            <span>tasks</span>
-          </div>
-        </div>
-
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs sm:text-sm">
             <thead className="bg-background/80 text-muted border-b border-border">
@@ -251,7 +371,7 @@ export default function EmployeeTasksPage() {
                     colSpan={7}
                     className="px-4 py-8 text-center text-sm text-muted"
                   >
-                    No tasks assigned to you.
+                    No tasks in this week range.
                   </td>
                 </tr>
               )}
