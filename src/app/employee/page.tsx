@@ -351,7 +351,7 @@ export default function EmployeeDashboardPage() {
               Timesheet (selected week)
             </p>
             <p className="text-xl font-semibold">
-              {thisWeekHours.toFixed(2)} h
+              {thisWeekHours.toFixed(2)}
             </p>
           </div>
         </div>
@@ -364,7 +364,7 @@ export default function EmployeeDashboardPage() {
           <div className="flex flex-col">
             <p className="text-xs text-muted mb-0.5">Today&apos;s logged hours</p>
             <p className="text-xl font-semibold">
-              {todayHours.toFixed(2)} h
+              {todayHours.toFixed(2)}
             </p>
           </div>
         </div>
@@ -379,7 +379,7 @@ export default function EmployeeDashboardPage() {
               Total logged hours (all time)
             </p>
             <p className="text-xl font-semibold">
-              {totalAllTimeHours.toFixed(2)} h
+              {totalAllTimeHours.toFixed(2)}
             </p>
           </div>
         </div>
