@@ -57,6 +57,7 @@ function toLocalISODate(d: Date) {
   return `${year}-${month}-${day}`;
 }
 
+// Monday–Sunday week from any date.[web:24]
 function getWeekRangeFromDate(base: Date): { startISO: string; endISO: string } {
   const day = base.getDay(); // 0 = Sun
   const diffToMonday = (day + 6) % 7;
@@ -76,6 +77,17 @@ function addDaysISO(iso: string, days: number) {
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(y, m - 1, d + days);
   return toLocalISODate(dt);
+}
+
+// Label like "Jan 05, 2026".[web:25]
+function formatDateShortWithYear(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
 }
 
 export default function EmployeeDashboardPage() {
@@ -219,7 +231,10 @@ export default function EmployeeDashboardPage() {
     return Object.values(map).reduce((sum, v) => sum + v, 0);
   }, [employeeTasks]);
 
-  const weekRangeLabel = `${weekStartISO} – ${weekEndISO}`;
+  // Formatted label like the screenshot: "Jan 05, 2026 – Jan 11, 2026".[web:25]
+  const weekRangeLabel = `${formatDateShortWithYear(
+    weekStartISO
+  )} – ${formatDateShortWithYear(weekEndISO)}`;
 
   const goToPreviousWeek = () => {
     setWeekStartISO((prev) => addDaysISO(prev, -7));
@@ -271,37 +286,40 @@ export default function EmployeeDashboardPage() {
           </p>
         </div>
 
-        {/* Week range card with prev/next and date picker icon */}
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted">
+        {/* Week range control matching the desired layout */}
+        <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted">
           <button
             type="button"
             onClick={goToPreviousWeek}
             className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+            title="Previous week"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
 
-          <div className="flex flex-col items-start px-2">
-            <span className="font-medium">{weekRangeLabel}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-foreground">
+              {weekRangeLabel}
+            </span>
+            <div className="relative">
+              <input
+                type="date"
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                value={weekStartISO}
+                onChange={(e) => handleWeekPickerChange(e.target.value)}
+                aria-label="Select week date"
+              />
+              <div className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted hover:bg-card cursor-pointer pointer-events-none">
+                <CalendarIcon className="h-3.5 w-3.5" />
+              </div>
+            </div>
           </div>
-
-          <button
-            type="button"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border hover:bg-muted/40 relative"
-          >
-            <CalendarIcon className="h-3.5 w-3.5" />
-            <input
-              type="date"
-              className="absolute inset-0 opacity-0 cursor-pointer"
-              value={weekStartISO}
-              onChange={(e) => handleWeekPickerChange(e.target.value)}
-            />
-          </button>
 
           <button
             type="button"
             onClick={goToNextWeek}
             className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+            title="Next week"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
