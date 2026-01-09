@@ -14,6 +14,9 @@ import {
   BarChart3,
   LineChart as LineIcon,
   Clock4,
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   PieChart,
@@ -31,8 +34,21 @@ import {
   Legend,
 } from "recharts";
 
-// Colors for charts (unchanged)
-const SEGMENT_COLORS = ["#22c55e", "#eab308", "#ef4444", "#0ea5e9", "#a855f7"];
+// Status colors (match admin)
+const STATUS_COLORS: Record<string, string> = {
+  Active: "#22c55e",        // green
+  "On Hold": "#eab308",     // yellow
+  Completed: "#f97316",     // orange
+  "Not Started": "#ef4444", // red
+  "In Progress": "#ef4444", // red
+};
+
+const legendProps = {
+  verticalAlign: "bottom" as const,
+  align: "left" as const,
+  iconType: "circle" as const,
+  wrapperStyle: { fontSize: 11, paddingTop: 8 },
+};
 
 function toLocalISODate(d: Date) {
   const year = d.getFullYear();
@@ -56,12 +72,21 @@ function getWeekRangeFromDate(base: Date): { startISO: string; endISO: string } 
   return { startISO, endISO };
 }
 
+function addDaysISO(iso: string, days: number) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + days);
+  return toLocalISODate(dt);
+}
+
 export default function EmployeeDashboardPage() {
   const router = useRouter();
 
-  // 1) Hooks at top
   const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
+
+  const initialWeek = getWeekRangeFromDate(new Date());
+  const [weekStartISO, setWeekStartISO] = useState<string>(initialWeek.startISO);
+  const [weekEndISO, setWeekEndISO] = useState<string>(initialWeek.endISO);
 
   useEffect(() => {
     try {
@@ -81,7 +106,6 @@ export default function EmployeeDashboardPage() {
     }
   }, []);
 
-  // 2) Derived data
   const employee =
     currentEmployeeId != null
       ? demoUsers.find((u) => u.id === currentEmployeeId)
@@ -114,21 +138,15 @@ export default function EmployeeDashboardPage() {
     .filter((t) => t.date === todayISO)
     .reduce((sum, t) => sum + t.workedHours, 0);
 
-  const { startISO, endISO } = useMemo(() => {
-    const today = new Date();
-    return getWeekRangeFromDate(today);
-  }, []);
-
-  const thisWeekTasks = useMemo(
+  const weekTasks = useMemo(
     () =>
-      employeeTasks.filter((t) => t.date >= startISO && t.date <= endISO),
-    [employeeTasks, startISO, endISO]
+      employeeTasks.filter(
+        (t) => t.date >= weekStartISO && t.date <= weekEndISO
+      ),
+    [employeeTasks, weekStartISO, weekEndISO]
   );
 
-  const thisWeekHours = thisWeekTasks.reduce(
-    (sum, t) => sum + t.workedHours,
-    0
-  );
+  const thisWeekHours = weekTasks.reduce((sum, t) => sum + t.workedHours, 0);
 
   const projectsByStatus = useMemo(() => {
     const map: Record<string, number> = {};
@@ -140,21 +158,21 @@ export default function EmployeeDashboardPage() {
 
   const tasksByStatus = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const t of employeeTasks) {
+    for (const t of weekTasks) {
       map[t.status] = (map[t.status] ?? 0) + 1;
     }
     return Object.entries(map).map(([status, value]) => ({ name: status, value }));
-  }, [employeeTasks]);
+  }, [weekTasks]);
 
   const tasksByDate = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const t of employeeTasks) {
+    for (const t of weekTasks) {
       map[t.date] = (map[t.date] ?? 0) + 1;
     }
     return Object.entries(map)
       .sort(([a], [b]) => (a < b ? -1 : 1))
       .map(([date, count]) => ({ date, count }));
-  }, [employeeTasks]);
+  }, [weekTasks]);
 
   const timesheetByDate = useMemo(() => {
     const map: Record<
@@ -162,7 +180,7 @@ export default function EmployeeDashboardPage() {
       { total: number; billable: number; nonBillable: number }
     > = {};
 
-    for (const t of employeeTasks) {
+    for (const t of weekTasks) {
       if (!map[t.date]) {
         map[t.date] = { total: 0, billable: 0, nonBillable: 0 };
       }
@@ -191,14 +209,35 @@ export default function EmployeeDashboardPage() {
         billable: v.billable,
         nonBillable: v.nonBillable,
       }));
+  }, [weekTasks]);
+
+  const totalAllTimeHours = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const t of employeeTasks) {
+      map[t.date] = (map[t.date] ?? 0) + t.workedHours;
+    }
+    return Object.values(map).reduce((sum, v) => sum + v, 0);
   }, [employeeTasks]);
 
-  const totalAllTimeHours = timesheetByDate.reduce(
-    (sum, d) => sum + d.total,
-    0
-  );
+  const weekRangeLabel = `${weekStartISO} – ${weekEndISO}`;
 
-  // 3) Conditional returns
+  const goToPreviousWeek = () => {
+    setWeekStartISO((prev) => addDaysISO(prev, -7));
+    setWeekEndISO((prev) => addDaysISO(prev, -7));
+  };
+
+  const goToNextWeek = () => {
+    setWeekStartISO((prev) => addDaysISO(prev, 7));
+    setWeekEndISO((prev) => addDaysISO(prev, 7));
+  };
+
+  const handleWeekPickerChange = (value: string) => {
+    if (!value) return;
+    const { startISO, endISO } = getWeekRangeFromDate(new Date(value));
+    setWeekStartISO(startISO);
+    setWeekEndISO(endISO);
+  };
+
   if (!hydrated) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-background text-muted">
@@ -215,10 +254,9 @@ export default function EmployeeDashboardPage() {
     );
   }
 
-  // 4) UI
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with week selector on right */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2 text-muted text-xs mb-1">
@@ -232,16 +270,46 @@ export default function EmployeeDashboardPage() {
             Overview of your projects, tasks, and time tracking.
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-card px-4 py-2 text-xs text-muted">
-          <p className="mb-0.5">Today&apos;s logged hours</p>
-          <p className="text-lg font-semibold text-emerald-500">
-            {todayHours.toFixed(2)} h
-          </p>
+
+        {/* Week range card with prev/next and date picker icon */}
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted">
+          <button
+            type="button"
+            onClick={goToPreviousWeek}
+            className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          <div className="flex flex-col items-start px-2">
+            <span className="font-medium">{weekRangeLabel}</span>
+          </div>
+
+          <button
+            type="button"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border hover:bg-muted/40 relative"
+          >
+            <CalendarIcon className="h-3.5 w-3.5" />
+            <input
+              type="date"
+              className="absolute inset-0 opacity-0 cursor-pointer"
+              value={weekStartISO}
+              onChange={(e) => handleWeekPickerChange(e.target.value)}
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={goToNextWeek}
+            className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
       {/* Summary cards */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <button
           type="button"
           onClick={() => router.push("/employee/projects")}
@@ -252,7 +320,9 @@ export default function EmployeeDashboardPage() {
           </span>
           <div>
             <p className="text-xs text-muted mb-0.5">Total Projects</p>
-            <p className="text-xl font-semibold">{totalProjects}</p>
+            <p className="text-xl font-semibold underline decoration-emerald-500 underline-offset-4">
+              {totalProjects}
+            </p>
           </div>
         </button>
 
@@ -266,7 +336,9 @@ export default function EmployeeDashboardPage() {
           </span>
           <div>
             <p className="text-xs text-muted mb-0.5">Total Tasks</p>
-            <p className="text-xl font-semibold">{totalTasks}</p>
+            <p className="text-xl font-semibold underline decoration-emerald-500 underline-offset-4">
+              {totalTasks}
+            </p>
           </div>
         </button>
 
@@ -276,10 +348,38 @@ export default function EmployeeDashboardPage() {
           </span>
           <div>
             <p className="text-xs text-muted mb-0.5">
-              Timesheet (this week)
+              Timesheet (selected week)
             </p>
             <p className="text-xl font-semibold">
               {thisWeekHours.toFixed(2)} h
+            </p>
+          </div>
+        </div>
+
+        {/* Today's hours */}
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+            <Clock4 className="h-5 w-5" />
+          </span>
+          <div className="flex flex-col">
+            <p className="text-xs text-muted mb-0.5">Today&apos;s logged hours</p>
+            <p className="text-xl font-semibold">
+              {todayHours.toFixed(2)} h
+            </p>
+          </div>
+        </div>
+
+        {/* All‑time hours */}
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+            <Clock4 className="h-5 w-5" />
+          </span>
+          <div className="flex flex-col">
+            <p className="text-xs text-muted mb-0.5">
+              Total logged hours (all time)
+            </p>
+            <p className="text-xl font-semibold">
+              {totalAllTimeHours.toFixed(2)} h
             </p>
           </div>
         </div>
@@ -313,15 +413,15 @@ export default function EmployeeDashboardPage() {
                     outerRadius={80}
                     paddingAngle={2}
                   >
-                    {projectsByStatus.map((entry, index) => (
+                    {projectsByStatus.map((entry) => (
                       <Cell
                         key={entry.name}
-                        fill={SEGMENT_COLORS[index % SEGMENT_COLORS.length]}
+                        fill={STATUS_COLORS[entry.name] ?? "#6b7280"}
                       />
                     ))}
                   </Pie>
                   <RechartsTooltip />
-                  <Legend />
+                  <Legend {...legendProps} />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -354,15 +454,15 @@ export default function EmployeeDashboardPage() {
                     outerRadius={80}
                     paddingAngle={2}
                   >
-                    {tasksByStatus.map((entry, index) => (
+                    {tasksByStatus.map((entry) => (
                       <Cell
                         key={entry.name}
-                        fill={SEGMENT_COLORS[index % SEGMENT_COLORS.length]}
+                        fill={STATUS_COLORS[entry.name] ?? "#6b7280"}
                       />
                     ))}
                   </Pie>
                   <RechartsTooltip />
-                  <Legend />
+                  <Legend {...legendProps} />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -388,10 +488,11 @@ export default function EmployeeDashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={tasksByDate}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2933" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                   <YAxis />
                   <RechartsTooltip />
+                  <Legend {...legendProps} />
                   <Bar dataKey="count" fill="#22c55e" />
                 </BarChart>
               </ResponsiveContainer>
@@ -421,16 +522,17 @@ export default function EmployeeDashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={timesheetByDate}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2933" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                   <YAxis />
                   <RechartsTooltip />
+                  <Legend {...legendProps} />
                   <Line
                     type="monotone"
                     dataKey="total"
                     stroke="#22c55e"
                     strokeWidth={2}
-                    dot={false}
+                    dot={{ r: 3 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -457,16 +559,17 @@ export default function EmployeeDashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={timesheetByDate}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2933" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                   <YAxis />
                   <RechartsTooltip />
+                  <Legend {...legendProps} />
                   <Line
                     type="monotone"
                     dataKey="billable"
                     stroke="#eab308"
                     strokeWidth={2}
-                    dot={false}
+                    dot={{ r: 3 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -493,16 +596,17 @@ export default function EmployeeDashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={timesheetByDate}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2933" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                   <YAxis />
                   <RechartsTooltip />
+                  <Legend {...legendProps} />
                   <Line
                     type="monotone"
                     dataKey="nonBillable"
                     stroke="#ef4444"
                     strokeWidth={2}
-                    dot={false}
+                    dot={{ r: 3 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -510,10 +614,6 @@ export default function EmployeeDashboardPage() {
           </div>
         </div>
       </section>
-
-      <p className="text-[11px] text-muted">
-        Total logged hours (all time): {totalAllTimeHours.toFixed(2)} h
-      </p>
     </div>
   );
 }
