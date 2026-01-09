@@ -100,7 +100,7 @@ type RowDraft = {
   rowId: number | null;
 };
 
-type PlaceholderState = Record<string, number[]>; // key = weekStartISO, value = row ids
+type PlaceholderState = Record<string, number[]>;
 
 export default function AdminTimesheetPage() {
   const [currentAnchor, setCurrentAnchor] = useState<Date>(new Date());
@@ -110,7 +110,7 @@ export default function AdminTimesheetPage() {
     () => getWeekRangeFromAnchor(currentAnchor),
     [currentAnchor]
   );
-  const weekKey = startISO; // unique id per week
+  const weekKey = startISO;
   const todayISO = toLocalISODate(new Date());
 
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -126,6 +126,7 @@ export default function AdminTimesheetPage() {
     "csv"
   );
 
+  // NOTE: for "this_week" we now always use the visible header range (startISO/endISO)
   const { rangeStart, rangeEnd } = useMemo(() => {
     const now = new Date();
     if (dateRangeFilter === "today") {
@@ -142,6 +143,7 @@ export default function AdminTimesheetPage() {
     if (dateRangeFilter === "custom" && customStart && customEnd) {
       return { rangeStart: customStart, rangeEnd: customEnd };
     }
+    // this_week -> use current header week
     return { rangeStart: startISO, rangeEnd: endISO };
   }, [dateRangeFilter, customStart, customEnd, startISO, endISO]);
 
@@ -196,7 +198,6 @@ export default function AdminTimesheetPage() {
     (sum, t) => sum + t.workedHours,
     0
   );
-
   const billableHours = rangeTasks
     .filter((t) => t.billingType === "billable")
     .reduce((sum, t) => sum + t.workedHours, 0);
@@ -240,7 +241,6 @@ export default function AdminTimesheetPage() {
         r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")
       )
       .join("\n");
-
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -398,9 +398,8 @@ export default function AdminTimesheetPage() {
   }, []);
 
   // ---------- placeholder rows + row editor ----------
-  // map of weekKey -> placeholder row ids
   const [placeholderRowsByWeek, setPlaceholderRowsByWeek] =
-    useState<PlaceholderState>({}); // [file:2]
+    useState<PlaceholderState>({});
 
   const currentPlaceholderRowIds = placeholderRowsByWeek[weekKey] ?? [1, 2, 3];
 
@@ -411,7 +410,10 @@ export default function AdminTimesheetPage() {
   });
   const [showRowEditor, setShowRowEditor] = useState(false);
 
-  const setWeekPlaceholders = (week: string, updater: (prev: number[]) => number[]) => {
+  const setWeekPlaceholders = (
+    week: string,
+    updater: (prev: number[]) => number[]
+  ) => {
     setPlaceholderRowsByWeek((prev) => {
       const prevRows = prev[week] ?? [1, 2, 3];
       return {
@@ -486,6 +488,51 @@ export default function AdminTimesheetPage() {
   const hasAnyTasksThisWeek = tasksById.length > 0;
   const hasAnyTasksInRange = rangeTasks.length > 0;
   const hasPlaceholdersThisWeek = currentPlaceholderRowIds.length > 0;
+
+  // ---- new behavior: keep header in sync with filters ----
+
+  // when user picks an exact date, move anchor to that date’s week
+  const handleExactDateChange = (value: string) => {
+    setDateFilter(value);
+    if (value) {
+      const d = new Date(value);
+      setCurrentAnchor(d); // only move anchor; do NOT touch dateRangeFilter
+    }
+  };
+
+  // when user sets custom range, move anchor to "from" date week
+  const handleCustomStartChange = (value: string) => {
+    setCustomStart(value);
+    if (value) {
+      const d = new Date(value);
+      setCurrentAnchor(d);
+    }
+  };
+
+  const handleDateRangeFilterChange = (value: DateRangeFilter) => {
+    setDateRangeFilter(value);
+
+    if (value === "this_week") {
+      // go to today's week when explicitly switching to "This week"
+      setCurrentAnchor(new Date());
+    } else if (value === "today") {
+      const today = new Date();
+      setCurrentAnchor(today);
+    } else if (value === "custom" && customStart) {
+      const d = new Date(customStart);
+      setCurrentAnchor(d);
+    }
+  };
+
+  const handleClearFilters = () => {
+    setProjectFilter("all");
+    setEmployeeFilter("all");
+    setDateFilter("");
+    setDateRangeFilter("this_week");
+    setCustomStart("");
+    setCustomEnd("");
+    setCurrentAnchor(new Date()); // back to current week
+  };
 
   return (
     <main className="space-y-4">
@@ -619,7 +666,7 @@ export default function AdminTimesheetPage() {
             <select
               value={dateRangeFilter}
               onChange={(e) =>
-                setDateRangeFilter(e.target.value as DateRangeFilter)
+                handleDateRangeFilterChange(e.target.value as DateRangeFilter)
               }
               className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             >
@@ -639,7 +686,7 @@ export default function AdminTimesheetPage() {
             <input
               type="date"
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={(e) => handleExactDateChange(e.target.value)}
               className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
           </div>
@@ -654,7 +701,7 @@ export default function AdminTimesheetPage() {
               <input
                 type="date"
                 value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
+                onChange={(e) => handleCustomStartChange(e.target.value)}
                 className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
               />
             </div>
@@ -680,14 +727,7 @@ export default function AdminTimesheetPage() {
           customEnd) && (
           <button
             type="button"
-            onClick={() => {
-              setProjectFilter("all");
-              setEmployeeFilter("all");
-              setDateFilter("");
-              setDateRangeFilter("this_week");
-              setCustomStart("");
-              setCustomEnd("");
-            }}
+            onClick={handleClearFilters}
             className="mt-1 text-[11px] text-emerald-500 hover:underline"
           >
             Clear filters
@@ -773,7 +813,6 @@ export default function AdminTimesheetPage() {
           )}
           <span>Export filtered data</span>
         </button>
-
         <span className="text-[11px] text-muted">
           {exportRows.length} rows will be exported based on current filters and
           date range.
@@ -782,7 +821,6 @@ export default function AdminTimesheetPage() {
 
       {/* Weekly grid with totals footer */}
       <section className="rounded-2xl border border-border bg-card overflow-hidden">
-        {/* Add row button – always usable */}
         <div className="border-b border-border px-4 py-2 bg-background/60 flex justify-end">
           <button
             type="button"
@@ -855,7 +893,6 @@ export default function AdminTimesheetPage() {
                 </tr>
               ))}
 
-              {/* Week specific placeholder rows */}
               {!hasAnyTasksThisWeek &&
                 hasPlaceholdersThisWeek &&
                 currentPlaceholderRowIds.map((rowId) => (
@@ -892,7 +929,6 @@ export default function AdminTimesheetPage() {
                   </tr>
                 ))}
 
-              {/* Global no-data message when no tasks anywhere and no placeholders in current week */}
               {!hasAnyTasksInRange && !hasPlaceholdersThisWeek && (
                 <tr>
                   <td
@@ -1018,6 +1054,7 @@ export default function AdminTimesheetPage() {
         </div>
       )}
 
+      {/* Row editor modal */}
       {showRowEditor && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
           <div className="w-full max-w-lg rounded-2xl bg-card text-foreground shadow-2xl border border-border overflow-hidden">
@@ -1086,11 +1123,7 @@ export default function AdminTimesheetPage() {
                   >
                     <option value="">Select Task</option>
                     {rowDraft.projectId !== null &&
-                      (
-                        initialTasks.filter(
-                          (t) => t.projectId === rowDraft.projectId
-                        ) ?? []
-                      ).map((t) => (
+                      (tasksByProject[rowDraft.projectId] ?? []).map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.name}
                         </option>
