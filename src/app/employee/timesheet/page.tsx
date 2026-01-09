@@ -467,7 +467,7 @@ export default function EmployeeTimesheetPage() {
           <div>
             <p className="text-muted mb-1">Total Week Hours</p>
             <p className="text-xl font-semibold">
-              {totalWorkedRange.toFixed(2)} h
+              {totalWorkedRange.toFixed(2)} 
             </p>
           </div>
         </div>
@@ -517,7 +517,7 @@ export default function EmployeeTimesheetPage() {
               }`}
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>Add row</span>
+              <span>Add Task</span>
             </button>
 
             <button
@@ -775,7 +775,7 @@ export default function EmployeeTimesheetPage() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
           <div className="w-full max-w-lg rounded-2xl bg-card text-foreground shadow-2xl border border-border overflow-hidden">
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
-              <h2 className="text-sm font-semibold">Update Timesheet</h2>
+              <h2 className="text-sm font-semibold">Select Projects And Tasks</h2>
               <button
                 type="button"
                 onClick={() => setShowRowEditor(false)}
