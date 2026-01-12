@@ -98,18 +98,41 @@ function ToggleRow({
         <p className="text-sm font-medium">{label}</p>
         <p className="text-xs text-muted">{description}</p>
       </div>
-      <label className="inline-flex items-center gap-2">
+
+      <label className="relative inline-flex items-center cursor-pointer">
         <span className="sr-only">{label}</span>
+
+        {/* peer checkbox */}
         <input
           type="checkbox"
           name={name}
           checked={checked}
           onChange={onChange}
-          className="peer hidden"
+          className="sr-only peer"
         />
-        <span className="relative inline-flex h-5 w-9 items-center rounded-full bg-muted peer-checked:bg-emerald-500 transition-colors">
-          <span className="inline-block h-4 w-4 rounded-full bg-background shadow transform transition-transform translate-x-0 peer-checked:translate-x-4" />
-        </span>
+
+        {/* track + knob (knob is the after: pseudo-element) */}
+        <div
+          className="
+            w-9 h-5
+            bg-muted
+            rounded-full
+            transition-colors
+            peer-checked:bg-emerald-500
+            relative
+            after:content-['']
+            after:absolute
+            after:top-[2px]
+            after:left-[2px]
+            after:h-4
+            after:w-4
+            after:rounded-full
+            after:bg-background
+            after:shadow
+            after:transition-all
+            peer-checked:after:translate-x-4
+          "
+        />
       </label>
     </div>
   );
