@@ -26,8 +26,9 @@ import {
   Users,
   Briefcase,
   ClipboardList,
-  CalendarRange,
-  Filter,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 const COLORS = ["#22c55e", "#ef4444", "#eab308", "#3b82f6", "#a855f7"];
@@ -40,12 +41,20 @@ type ClientStatus = (typeof initialClients)[number]["status"];
 // simple YYYY-MM-DD sort helper
 const sortByDate = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
+// helper to get ISO date N days ago
+const getISODateNDaysAgo = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+};
+
 export default function AdminDashboard() {
+  // default to last 7 days
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | "all">(
     "all"
   );
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>(getISODateNDaysAgo(6));
+  const [endDate, setEndDate] = useState<string>(getISODateNDaysAgo(0));
 
   const isWithinRange = (date: string) => {
     if (startDate && date < startDate) return false;
@@ -139,9 +148,41 @@ export default function AdminDashboard() {
   const dateLabel =
     startDate || endDate ? `${startDate || "…"} – ${endDate || "…"}` : "all dates";
 
+  // shift full week forward/backward
+  const shiftWeek = (direction: "prev" | "next") => {
+    if (!startDate || !endDate) return;
+    const diff = 7 * (direction === "prev" ? -1 : 1);
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    start.setDate(start.getDate() + diff);
+    end.setDate(end.getDate() + diff);
+    setStartDate(start.toISOString().slice(0, 10));
+    setEndDate(end.toISOString().slice(0, 10));
+  };
+
+  // format to "Jan 12, 2026"
+  const formatDateShortWithYear = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+  // given an anchor date, set [Mon..Sun] week
+  const setWeekFromAnchor = (anchor: Date) => {
+    const day = anchor.getDay(); // 0 Sun - 6 Sat
+    const mondayDiff = (day + 6) % 7;
+    const start = new Date(anchor);
+    start.setDate(anchor.getDate() - mondayDiff);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    setStartDate(start.toISOString().slice(0, 10));
+    setEndDate(end.toISOString().slice(0, 10));
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header + date range pill */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
           <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
@@ -150,66 +191,65 @@ export default function AdminDashboard() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
             <p className="text-sm text-muted">
-              Visual overview of employees, projects, clients, tasks and
-              timesheet hours.
+              Visual overview of employees, projects, clients, tasks and timesheet hours.
             </p>
+          </div>
+        </div>
+
+        {/* Date range bar (same style as timesheet) */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground">
+            {/* Previous week */}
+            <button
+              type="button"
+              onClick={() => shiftWeek("prev")}
+              className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+              title="Previous week"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            {/* Center label + calendar */}
+            <div className="flex items-center gap-2">
+              <span>
+                {formatDateShortWithYear(startDate)} –{" "}
+                {formatDateShortWithYear(endDate)}
+              </span>
+
+              <div className="relative">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    const selectedDate = new Date(e.target.value);
+                    setWeekFromAnchor(selectedDate);
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  aria-label="Select week date"
+                />
+                <div className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted hover:bg-card cursor-pointer pointer-events-none">
+                  <Calendar className="h-3.5 w-3.5" />
+                </div>
+              </div>
+            </div>
+
+            {/* Next week */}
+            <button
+              type="button"
+              onClick={() => shiftWeek("next")}
+              className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+              title="Next week"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <section className="rounded-xl border border-border bg-card px-4 py-3 md:px-5 md:py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2 text-xs text-muted">
-          <Filter className="h-4 w-4 text-emerald-500" />
-          <span>Filters</span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4 text-xs">
-          {/* Employee filter */}
-          <div className="flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5 text-muted" />
-            <span className="text-muted">Employee:</span>
-            <select
-              value={selectedEmployeeId}
-              onChange={(e) =>
-                setSelectedEmployeeId(
-                  e.target.value === "all" ? "all" : Number(e.target.value)
-                )
-              }
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-            >
-              <option value="all">All employees</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Date filter */}
-          <div className="flex items-center gap-1.5">
-            <CalendarRange className="h-3.5 w-3.5 text-muted" />
-            <span className="text-muted">Date:</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-            />
-            <span className="text-muted">–</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Summary cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* Summary cards (3 stats + 1 employee filter) */}
+      <div className="grid gap-4 md:grid-cols-4">
+        {/* Total employees */}
         <Link
           href="/admin/employees"
           className="rounded-xl border border-border bg-card p-4 flex items-center justify-between hover:border-emerald-500 hover:bg-card/90 transition-colors"
@@ -228,6 +268,7 @@ export default function AdminDashboard() {
           </div>
         </Link>
 
+        {/* Active projects */}
         <Link
           href="/admin/projects"
           className="rounded-xl border border-border bg-card p-4 flex items-center justify-between hover:border-emerald-500 hover:bg-card/90 transition-colors"
@@ -246,6 +287,7 @@ export default function AdminDashboard() {
           </div>
         </Link>
 
+        {/* Open tasks */}
         <Link
           href="/admin/tasks"
           className="rounded-xl border border-border bg-card p-4 flex items-center justify-between hover:border-emerald-500 hover:bg-card/90 transition-colors"
@@ -263,6 +305,34 @@ export default function AdminDashboard() {
             <ClipboardList className="h-4 w-4" />
           </div>
         </Link>
+
+        {/* Employee filter card */}
+        <div className="rounded-xl border border-border bg-card p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-muted">Employee filter</p>
+            <Users className="h-4 w-4 text-muted" />
+          </div>
+          <p className="mt-1 text-[11px] text-muted">
+            Filter charts by employee.
+          </p>
+
+          <select
+            value={selectedEmployeeId}
+            onChange={(e) =>
+              setSelectedEmployeeId(
+                e.target.value === "all" ? "all" : Number(e.target.value)
+              )
+            }
+            className="mt-3 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+          >
+            <option value="all">All employees</option>
+            {employees.map((emp) => (
+              <option key={emp.id} value={emp.id}>
+                {emp.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Charts */}

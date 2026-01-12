@@ -11,7 +11,7 @@ import {
   DollarSign,
   Settings,
   type LucideIcon,
-} from "lucide-react"; // icons [web:11][web:13]
+} from "lucide-react";
 
 type Mode = "add" | "edit";
 type TabKey = "basic" | "team" | "billing" | "advanced";
@@ -203,7 +203,6 @@ export default function ProjectModal({
   const getEmployeeName = (id: number) =>
     employeeOptions.find((e) => e.id === id)?.name ?? "Unknown";
 
-  // react-select styles for employees
   const employeeSelectStyles = {
     control: (base: any, state: any) => ({
       ...base,
@@ -293,7 +292,6 @@ export default function ProjectModal({
   const goToNextTab = () => {
     const order: TabKey[] = ["basic", "team", "billing", "advanced"];
 
-    // validate on basic before moving on
     if (activeTab === "basic") {
       const ok = validateBasicTab();
       if (!ok) return;
@@ -699,18 +697,24 @@ export default function ProjectModal({
             >
               Cancel
             </button>
-            <button
-              type={isLastTab ? "submit" : "button"}
-              onClick={() => {
-                if (!isLastTab) {
-                  goToNextTab();
-                }
-                // when last tab, type="submit" triggers form submit
-              }}
-              className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
-            >
-              {isLastTab ? "Save" : "Next"}
-            </button>
+
+            {/* IMPORTANT CHANGE: no onClick here; rely on form submit on last tab */}
+            {isLastTab ? (
+              <button
+                type="submit"
+                className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+              >
+                Save
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={goToNextTab}
+                className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+              >
+                Next
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Project, ProjectStatus, initialProjects } from "@/lib/projects";
 import ProjectModal from "@/components/ProjectModal";
+import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 
 function StatusBadge({ status }: { status: ProjectStatus }) {
   const base =
@@ -37,16 +38,70 @@ function StatusBadge({ status }: { status: ProjectStatus }) {
 
 type StatusFilter = "All" | ProjectStatus;
 
+const formatDateShortWithYear = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
 export default function AdminProjects() {
   const router = useRouter();
+
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
+
+  // weekly range
+  const today = new Date();
+  const todayDay = today.getDay();
+  const mondayDiff = (todayDay + 6) % 7;
+  const initialStart = new Date(today);
+  initialStart.setDate(today.getDate() - mondayDiff);
+  const initialEnd = new Date(initialStart);
+  initialEnd.setDate(initialStart.getDate() + 6);
+
+  const [startISO, setStartISO] = useState<string>(
+    initialStart.toISOString().slice(0, 10)
+  );
+  const [endISO, setEndISO] = useState<string>(
+    initialEnd.toISOString().slice(0, 10)
+  );
+
+  const goPrevWeek = () => {
+    const start = new Date(startISO);
+    const end = new Date(endISO);
+    start.setDate(start.getDate() - 7);
+    end.setDate(end.getDate() - 7);
+    setStartISO(start.toISOString().slice(0, 10));
+    setEndISO(end.toISOString().slice(0, 10));
+  };
+
+  const goNextWeek = () => {
+    const start = new Date(startISO);
+    const end = new Date(endISO);
+    start.setDate(start.getDate() + 7);
+    end.setDate(end.getDate() + 7);
+    setStartISO(start.toISOString().slice(0, 10));
+    setEndISO(end.toISOString().slice(0, 10));
+  };
+
+  const setWeekFromAnchor = (anchor: Date) => {
+    const day = anchor.getDay();
+    const mondayDiff = (day + 6) % 7;
+    const start = new Date(anchor);
+    start.setDate(anchor.getDate() - mondayDiff);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    setStartISO(start.toISOString().slice(0, 10));
+    setEndISO(end.toISOString().slice(0, 10));
+  };
 
   const handleRowClick = (id: number) => {
     router.push(`/admin/projects/${id}`);
@@ -79,7 +134,9 @@ export default function AdminProjects() {
     setIsModalOpen(true);
   };
 
+  // SAVE: update list, close modal, clear selection
   const handleSaveProject = (project: Project) => {
+    console.log("handleSaveProject called with:", project); // debug
     if (modalMode === "add") {
       setProjects((prev) => [...prev, project]);
     } else {
@@ -87,6 +144,14 @@ export default function AdminProjects() {
         prev.map((p) => (p.id === project.id ? project : p))
       );
     }
+
+    setIsModalOpen(false);
+    setSelectedProject(null);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedProject(null);
   };
 
   const nextId =
@@ -96,6 +161,17 @@ export default function AdminProjects() {
     const term = searchTerm.trim().toLowerCase();
 
     return projects.filter((project) => {
+      const projectStart =
+        project.startDate && project.startDate.length >= 10
+          ? project.startDate.slice(0, 10)
+          : "0000-01-01";
+      const projectEnd =
+        project.endDate && project.endDate.length >= 10
+          ? project.endDate.slice(0, 10)
+          : "9999-12-31";
+
+      const inRange = projectEnd >= startISO && projectStart <= endISO;
+
       const matchesSearch =
         !term ||
         project.name.toLowerCase().includes(term) ||
@@ -105,9 +181,9 @@ export default function AdminProjects() {
       const matchesStatus =
         statusFilter === "All" ? true : project.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      return inRange && matchesSearch && matchesStatus;
     });
-  }, [projects, searchTerm, statusFilter]);
+  }, [projects, searchTerm, statusFilter, startISO, endISO]);
 
   return (
     <div className="space-y-4">
@@ -120,12 +196,61 @@ export default function AdminProjects() {
           </p>
         </div>
 
-        <button
-          onClick={handleAddProjectClick}
-          className="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
-        >
-          + Add Project
-        </button>
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
+          {/* Date range pill */}
+          <div className="flex flex-wrap items-center justify-end">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground">
+              <button
+                type="button"
+                onClick={goPrevWeek}
+                className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+                title="Previous week"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              <div className="flex items-center gap-2">
+                <span>
+                  {formatDateShortWithYear(startISO)} –{" "}
+                  {formatDateShortWithYear(endISO)}
+                </span>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={startISO}
+                    onChange={(e) => {
+                      if (!e.target.value) return;
+                      const selectedDate = new Date(e.target.value);
+                      setWeekFromAnchor(selectedDate);
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    aria-label="Select week date"
+                  />
+                  <div className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted hover:bg-card cursor-pointer pointer-events-none">
+                    <Calendar className="h-3.5 w-3.5" />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={goNextWeek}
+                className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+                title="Next week"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Add Project button */}
+          <button
+            onClick={handleAddProjectClick}
+            className="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+          >
+            + Add Project
+          </button>
+        </div>
       </div>
 
       {/* Container */}
@@ -266,7 +391,7 @@ export default function AdminProjects() {
       <ProjectModal
         open={isModalOpen}
         mode={modalMode}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleCloseModal}
         onSave={handleSaveProject}
         nextId={nextId}
         project={selectedProject ?? undefined}

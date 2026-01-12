@@ -2,10 +2,16 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Task, TaskStatus, TaskBillingType, initialTasks } from "@/lib/tasks";
+import {
+  Task,
+  TaskStatus,
+  TaskBillingType,
+  initialTasks,
+} from "@/lib/tasks";
 import { initialProjects } from "@/lib/projects";
 import { demoUsers } from "@/lib/users";
 import TaskModal from "@/components/TaskModal";
+import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 
 const hasProjects = initialProjects.length > 0;
 const employeesById = Object.fromEntries(demoUsers.map((u) => [u.id, u]));
@@ -84,6 +90,71 @@ export default function AdminTasks() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
 
+  // --- Weekly date range state (header) ---
+  // Initialize to current week [Mon..Sun]
+  const today = new Date();
+  const todayDay = today.getDay(); // 0 Sun - 6 Sat
+  const mondayDiff = (todayDay + 6) % 7;
+  const initialStart = new Date(today);
+  initialStart.setDate(today.getDate() - mondayDiff);
+  const initialEnd = new Date(initialStart);
+  initialEnd.setDate(initialStart.getDate() + 6);
+
+  const [startISO, setStartISO] = useState<string>(
+    initialStart.toISOString().slice(0, 10)
+  );
+  const [endISO, setEndISO] = useState<string>(
+    initialEnd.toISOString().slice(0, 10)
+  );
+
+  const formatAssignees = (assigneeIds: number[]) => {
+    if (assigneeIds.length === 0) return "-";
+    const names = assigneeIds
+      .map((id) => employeesById[id]?.name)
+      .filter(Boolean) as string[];
+    if (names.length === 0) return "-";
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return names.join(", ");
+    return `${names[0]}, ${names[1]} +${names.length - 2} more`;
+  };
+
+  // "Jan 12, 2026"
+  const formatDateShortWithYear = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+  const goPrevWeek = () => {
+    const start = new Date(startISO);
+    const end = new Date(endISO);
+    start.setDate(start.getDate() - 7);
+    end.setDate(end.getDate() - 7);
+    setStartISO(start.toISOString().slice(0, 10));
+    setEndISO(end.toISOString().slice(0, 10));
+  };
+
+  const goNextWeek = () => {
+    const start = new Date(startISO);
+    const end = new Date(endISO);
+    start.setDate(start.getDate() + 7);
+    end.setDate(end.getDate() + 7);
+    setStartISO(start.toISOString().slice(0, 10));
+    setEndISO(end.toISOString().slice(0, 10));
+  };
+
+  const setWeekFromAnchor = (anchor: Date) => {
+    const day = anchor.getDay();
+    const mondayDiff = (day + 6) % 7;
+    const start = new Date(anchor);
+    start.setDate(anchor.getDate() - mondayDiff);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    setStartISO(start.toISOString().slice(0, 10));
+    setEndISO(end.toISOString().slice(0, 10));
+  };
+
   const toggleMenu = (id: number) => {
     setOpenMenuId((prev) => (prev === id ? null : id));
   };
@@ -126,35 +197,31 @@ export default function AdminTasks() {
   const nextId =
     tasks.length === 0 ? 1 : Math.max(...tasks.map((t) => t.id)) + 1;
 
-  const formatAssignees = (assigneeIds: number[]) => {
-    if (assigneeIds.length === 0) return "-";
-    const names = assigneeIds
-      .map((id) => employeesById[id]?.name)
-      .filter(Boolean) as string[];
-    if (names.length === 0) return "-";
-    if (names.length === 1) return names[0];
-    if (names.length === 2) return names.join(", ");
-    return `${names[0]}, ${names[1]} +${names.length - 2} more`;
-  };
-
   const filteredTasks = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
+
     return tasks.filter((task) => {
+      const inRange =
+        (!startISO || task.date >= startISO) &&
+        (!endISO || task.date <= endISO);
+
       const matchesSearch =
         !term ||
         task.name.toLowerCase().includes(term) ||
         task.projectName.toLowerCase().includes(term) ||
         formatAssignees(task.assigneeIds).toLowerCase().includes(term) ||
         task.billingType.toLowerCase().includes(term);
+
       const matchesStatus =
         statusFilter === "All" ? true : task.status === statusFilter;
-      return matchesSearch && matchesStatus;
+
+      return inRange && matchesSearch && matchesStatus;
     });
-  }, [tasks, searchTerm, statusFilter]);
+  }, [tasks, searchTerm, statusFilter, startISO, endISO]);
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Header with date range + Add button */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
@@ -164,22 +231,71 @@ export default function AdminTasks() {
           </p>
         </div>
 
-        <button
-          onClick={handleAddTaskClick}
-          disabled={!hasProjects}
-          className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold shadow-sm ${
-            hasProjects
-              ? "bg-emerald-500 text-slate-950 shadow-emerald-500/40 hover:bg-emerald-400"
-              : "bg-muted text-muted-foreground cursor-not-allowed"
-          }`}
-        >
-          {hasProjects ? "+ Add Task" : "Add a project first"}
-        </button>
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
+          {/* Date range pill (before Add Task) */}
+          <div className="flex flex-wrap items-center justify-end">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground">
+              <button
+                type="button"
+                onClick={goPrevWeek}
+                className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+                title="Previous week"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              <div className="flex items-center gap-2">
+                <span>
+                  {formatDateShortWithYear(startISO)} –{" "}
+                  {formatDateShortWithYear(endISO)}
+                </span>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={startISO}
+                    onChange={(e) => {
+                      if (!e.target.value) return;
+                      const selectedDate = new Date(e.target.value);
+                      setWeekFromAnchor(selectedDate);
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    aria-label="Select week date"
+                  />
+                  <div className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted hover:bg-card cursor-pointer pointer-events-none">
+                    <Calendar className="h-3.5 w-3.5" />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={goNextWeek}
+                className="p-1.5 rounded-lg hover:bg-background/80 transition-colors"
+                title="Next week"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Add Task button */}
+          <button
+            onClick={handleAddTaskClick}
+            disabled={!hasProjects}
+            className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold shadow-sm ${
+              hasProjects
+                ? "bg-emerald-500 text-slate-950 shadow-emerald-500/40 hover:bg-emerald-400"
+                : "bg-muted text-muted-foreground cursor-not-allowed"
+            }`}
+          >
+            {hasProjects ? "+ Add Task" : "Add a project first"}
+          </button>
+        </div>
       </div>
 
       {/* Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden">
-        {/* Toolbar */}
+        {/* Toolbar (count + search + status filter) */}
         <div className="flex flex-col gap-3 border-b border-border p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-xs text-muted">
             <span className="font-medium text-foreground">
@@ -228,7 +344,9 @@ export default function AdminTasks() {
                 <th className="px-4 py-3 font-medium">Assigned To</th>
                 <th className="px-4 py-3 font-medium">Billing</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
+                <th className="px-4 py-3 font-medium text-right">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
