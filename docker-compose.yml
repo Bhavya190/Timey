@@ -12,5 +12,20 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: timey-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://timey_user:timey_pass@db:5432/timey_db?schema=public
+      - NEXTAUTH_SECRET=your_secret_here
+      - NEXTAUTH_URL=http://localhost:3000
+    depends_on:
+      - db
+
 volumes:
   pgdata:
