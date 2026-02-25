@@ -1,8 +1,4 @@
-// src/app/admin/layout.tsx
 "use client";
-
-"use client";
-
 import React, { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -14,13 +10,12 @@ import {
   ClipboardList,
   LogOut,
   Settings,
-  User,
+  User as UserIcon,
   Clock,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { demoUsers } from "@/lib/users";
-
-
+import { logoutAction } from "@/app/actions";
+import { useUser } from "@/components/UserProvider";
 
 const adminLinks = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -39,23 +34,48 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [currentAdminId, setCurrentAdminId] = useState<number | null>(null);
+  const { user: currentAdmin, isLoading, logout } = useUser();
 
-useEffect(() => {
-  const stored = window.localStorage.getItem("currentAdminId");
-  if (stored) {
-    const parsed = Number(stored);
-    if (!Number.isNaN(parsed)) setCurrentAdminId(parsed);
-  }
-}, []);
-
-const currentAdmin =
-  currentAdminId != null
-    ? demoUsers.find((u) => u.id === currentAdminId && u.role === "admin") ?? null
-    : null;
-  const handleLogout = () => {
-    router.replace("/");
+  const handleLogout = async () => {
+    await logout();
   };
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-background px-4 text-foreground">
+        <div className="rounded-2xl border border-border bg-card px-6 py-5 text-center max-w-md">
+          <h1 className="text-lg font-semibold mb-2">
+            Loading admin profile...
+          </h1>
+          <p className="text-sm text-muted">
+            Please wait while your profile is loaded.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!currentAdmin || (currentAdmin.role !== "admin" && currentAdmin.role !== "teamLead")) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-background px-4 text-foreground">
+        <div className="rounded-2xl border border-border bg-card px-6 py-5 text-center max-w-md">
+          <h1 className="text-lg font-semibold mb-2">
+            Access Restricted
+          </h1>
+          <p className="text-sm text-muted">
+            Please log in with an administrator or team lead account to continue.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.replace("/")}
+            className="mt-4 inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 font-medium"
+          >
+            Go to login
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   const isActive = (href: string) => {
     if (href === "/admin") return pathname === "/admin";
@@ -69,17 +89,29 @@ const currentAdmin =
         <div className="h-16 flex items-center justify-between px-6 border-b border-border">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/40">
-              {/* Reuse Clock icon for brand consistency */}
               <Clock className="h-5 w-5 text-emerald-500" />
             </div>
             <div>
               <p className="text-[10px] font-semibold tracking-[0.25em] text-emerald-500 uppercase mb-0.5">
                 Timey
               </p>
-              <p className="text-xs text-muted flex items-center gap-1">
-                <User className="h-3.5 w-3.5 text-muted" />
-                <span className="text-foreground">{currentAdmin?.name ?? "Admin"}</span>
-              </p>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-emerald-500 px-1 rounded bg-emerald-500/10 w-fit mb-0.5 font-bold uppercase tracking-wider">
+                  {currentAdmin.role}
+                </span>
+                <p className="text-xs text-muted flex items-center gap-1">
+                  {currentAdmin.avatarUrl ? (
+                    <img
+                      src={currentAdmin.avatarUrl}
+                      alt="Avatar"
+                      className="h-3.5 w-3.5 rounded-full object-cover"
+                    />
+                  ) : (
+                    <UserIcon className="h-3.5 w-3.5 text-muted" />
+                  )}
+                  <span className="text-foreground font-medium">{currentAdmin.name}</span>
+                </p>
+              </div>
             </div>
           </div>
           <ThemeToggle />
@@ -94,11 +126,10 @@ const currentAdmin =
                 key={item.href}
                 type="button"
                 onClick={() => router.push(item.href)}
-                className={`flex items-center gap-2 w-full text-left rounded-lg px-3 py-2 font-medium transition ${
-                  active
-                    ? "bg-emerald-500 text-slate-950"
-                    : "text-muted hover:bg-background/80 hover:text-foreground"
-                }`}
+                className={`flex items-center gap-2 w-full text-left rounded-lg px-3 py-2 font-medium transition ${active
+                  ? "bg-emerald-500 text-slate-950"
+                  : "text-muted hover:bg-background/80 hover:text-foreground"
+                  }`}
               >
                 <Icon className="h-4 w-4" />
                 <span>{item.label}</span>
@@ -131,10 +162,23 @@ const currentAdmin =
               <span className="text-xs font-semibold tracking-[0.2em] uppercase text-emerald-500">
                 Timey
               </span>
-              <span className="text-[11px] text-muted flex items-center gap-1">
-                <User className="h-3 w-3 text-muted" />
-                <span className="text-foreground">{currentAdmin?.name ?? "Admin"}</span>
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[8px] text-emerald-500 px-1 rounded bg-emerald-500/10 font-bold uppercase tracking-wider">
+                  {currentAdmin.role}
+                </span>
+                <span className="text-[11px] text-muted flex items-center gap-1">
+                  {currentAdmin.avatarUrl ? (
+                    <img
+                      src={currentAdmin.avatarUrl}
+                      alt="Avatar"
+                      className="h-3 w-3 rounded-full object-cover"
+                    />
+                  ) : (
+                    <UserIcon className="h-3 w-3 text-muted" />
+                  )}
+                  <span className="text-foreground font-medium">{currentAdmin.name}</span>
+                </span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -159,11 +203,10 @@ const currentAdmin =
                 key={item.href}
                 type="button"
                 onClick={() => router.push(item.href)}
-                className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${
-                  active
-                    ? "bg-emerald-500 text-slate-950"
-                    : "bg-background text-muted"
-                }`}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${active
+                  ? "bg-emerald-500 text-slate-950"
+                  : "bg-background text-muted"
+                  }`}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {item.label}

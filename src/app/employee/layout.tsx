@@ -1,17 +1,19 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { demoUsers } from "@/lib/users";
+import { fetchEmployeeAction, fetchUsersAction, getCurrentUserAction, logoutAction } from "@/app/actions";
+import type { User } from "@/types";
 import {
   LayoutDashboard,
   Clock,
   FolderKanban,
   ListTodo,
   LogOut,
-  User,
+  User as UserIcon,
   Settings,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useUser } from "@/components/UserProvider";
 
 const employeeLinks = [
   { href: "/employee", label: "Dashboard", icon: LayoutDashboard },
@@ -29,35 +31,13 @@ export default function EmployeeLayout({
   const router = useRouter();
   const pathname = usePathname();
 
-  const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(
-    null
-  );
-  const [hydrated, setHydrated] = useState(false);
+  const { user: currentEmployee, isLoading, logout } = useUser();
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem("currentEmployeeId");
-    if (stored) {
-      const parsed = Number(stored);
-      if (!Number.isNaN(parsed)) {
-        setCurrentEmployeeId(parsed);
-      }
-    }
-    setHydrated(true);
-  }, []);
-
-  const currentEmployee =
-    currentEmployeeId != null
-      ? demoUsers.find(
-          (u) => u.id === currentEmployeeId && u.role === "employee"
-        ) ?? null
-      : null;
-
-  const handleLogout = () => {
-    window.localStorage.removeItem("currentEmployeeId");
-    router.replace("/");
+  const handleLogout = async () => {
+    await logout();
   };
 
-  if (!hydrated) {
+  if (isLoading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-background px-4 text-foreground">
         <div className="rounded-2xl border border-border bg-card px-6 py-5 text-center max-w-md">
@@ -72,7 +52,7 @@ export default function EmployeeLayout({
     );
   }
 
-  if (!currentEmployee) {
+  if (!currentEmployee || currentEmployee.role !== "employee") {
     return (
       <main className="min-h-screen flex items-center justify-center bg-background px-4 text-foreground">
         <div className="rounded-2xl border border-border bg-card px-6 py-5 text-center max-w-md">
@@ -113,7 +93,7 @@ export default function EmployeeLayout({
                 Timey
               </p>
               <p className="text-xs text-muted flex items-center gap-1">
-                <User className="h-3.5 w-3.5 text-muted" />
+                <UserIcon className="h-3.5 w-3.5 text-muted" />
                 <span className="text-foreground">{currentEmployee.name}</span>
               </p>
             </div>
@@ -130,11 +110,10 @@ export default function EmployeeLayout({
                 key={item.href}
                 type="button"
                 onClick={() => router.push(item.href)}
-                className={`flex items-center gap-2 w-full text-left rounded-lg px-3 py-2 font-medium transition ${
-                  active
-                    ? "bg-emerald-500 text-slate-950"
-                    : "text-muted hover:bg-background/80 hover:text-foreground"
-                }`}
+                className={`flex items-center gap-2 w-full text-left rounded-lg px-3 py-2 font-medium transition ${active
+                  ? "bg-emerald-500 text-slate-950"
+                  : "text-muted hover:bg-background/80 hover:text-foreground"
+                  }`}
               >
                 <Icon className="h-4 w-4" />
                 <span>{item.label}</span>
@@ -168,7 +147,7 @@ export default function EmployeeLayout({
                 Timey
               </span>
               <span className="text-[11px] text-muted flex items-center gap-1">
-                <User className="h-3 w-3 text-muted" />
+                <UserIcon className="h-3 text-3 text-muted" />
                 <span className="text-foreground">
                   {currentEmployee.name}
                 </span>
@@ -197,11 +176,10 @@ export default function EmployeeLayout({
                 key={item.href}
                 type="button"
                 onClick={() => router.push(item.href)}
-                className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${
-                  active
-                    ? "bg-emerald-500 text-slate-950"
-                    : "bg-background text-muted"
-                }`}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${active
+                  ? "bg-emerald-500 text-slate-950"
+                  : "bg-background text-muted"
+                  }`}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {item.label}
@@ -214,8 +192,8 @@ export default function EmployeeLayout({
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-background">
           {React.isValidElement(children)
             ? React.cloneElement(children as React.ReactElement<any>, {
-                currentEmployeeId: currentEmployee.id,
-              })
+              currentEmployeeId: currentEmployee.id,
+            })
             : children}
         </main>
       </div>

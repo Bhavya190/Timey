@@ -1,8 +1,15 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Employee, initialEmployees } from "@/lib/employees";
+import { Employee } from "@/lib/employees";
+import {
+  fetchAdminEmployeesAction,
+  createEmployeeAction,
+  deleteEmployeeAction,
+  updateEmployeeProfileAction,
+} from "@/app/actions";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import AddEmployeeModal from "@/components/AddEmployeeModal";
 
 function AvatarCircle({ name }: { name: string }) {
@@ -24,24 +31,29 @@ function StatusBadge({ status }: { status: Employee["status"] }) {
   const isActive = status === "Active";
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${
-        isActive
-          ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/40"
-          : "bg-muted text-muted-foreground border-border"
-      }`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${isActive
+        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/40"
+        : "bg-muted text-muted-foreground border-border"
+        }`}
     >
       {status}
     </span>
   );
 }
 
-type StatusFilter = "all" | "Active" | "Inactive";
-
 export default function AdminEmployees() {
   const router = useRouter();
 
-  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchAdminEmployeesAction().then((data) => {
+      setEmployees(data);
+      setIsLoading(false);
+    });
+  }, []);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
@@ -49,7 +61,10 @@ export default function AdminEmployees() {
   );
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof Employee | "name";
+    direction: "asc" | "desc";
+  }>({ key: "name", direction: "asc" });
 
   const handleRowClick = (id: number) => {
     router.push(`/admin/employees/${id}`);
@@ -59,9 +74,15 @@ export default function AdminEmployees() {
     setOpenMenuId((prev) => (prev === id ? null : id));
   };
 
-  const handleRemove = (id: number) => {
-    setEmployees((prev) => prev.filter((e) => e.id !== id));
-    setOpenMenuId(null);
+  const handleRemove = async (id: number) => {
+    try {
+      await deleteEmployeeAction(id);
+      setEmployees((prev) => prev.filter((e) => e.id !== id));
+      setOpenMenuId(null);
+    } catch (err) {
+      console.error("Failed to delete employee:", err);
+      alert("Failed to delete employee. Please try again.");
+    }
   };
 
   const handleView = (emp: Employee) => {
@@ -82,13 +103,101 @@ export default function AdminEmployees() {
     setIsModalOpen(true);
   };
 
-  const handleSaveEmployee = (emp: Employee) => {
-    if (modalMode === "add") {
-      setEmployees((prev) => [...prev, emp]);
-    } else {
-      setEmployees((prev) => prev.map((e) => (e.id === emp.id ? emp : e)));
+  const handleSaveEmployee = async (empData: any) => {
+    try {
+      if (modalMode === "add") {
+        const created = await createEmployeeAction(empData);
+        // Map to summary type for UI
+        const summary: Employee = {
+          id: created.id,
+          name: `${created.firstName} ${created.lastName}`,
+          firstName: created.firstName,
+          middleName: created.middleName || undefined,
+          lastName: created.lastName,
+          email: created.email,
+          department: created.department,
+          location: created.location,
+          code: created.code,
+          status: "Active",
+          role: created.role,
+          shift: created.shift,
+          address: created.address,
+          city: created.city,
+          stateRegion: created.stateRegion,
+          country: created.country,
+          zip: created.zip,
+          phone: created.phone,
+          hireDate: created.hireDate,
+          terminationDate: created.terminationDate || undefined,
+          workType: created.workType,
+          billingType: created.billingType,
+          employeeRate: created.employeeRate,
+          employeeCurrency: created.employeeCurrency,
+          billingRateType: created.billingRateType,
+          billingCurrency: created.billingCurrency,
+          billingStart: created.billingStart,
+          billingEnd: created.billingEnd || undefined,
+        };
+        setEmployees((prev) => [...prev, summary]);
+      } else {
+        if (!selectedEmployee) return;
+        const updated = await updateEmployeeProfileAction(selectedEmployee.id, empData);
+        const summary: Employee = {
+          id: updated.id,
+          name: `${updated.firstName} ${updated.lastName}`,
+          firstName: updated.firstName,
+          middleName: updated.middleName || undefined,
+          lastName: updated.lastName,
+          email: updated.email,
+          department: updated.department,
+          location: updated.location,
+          code: updated.code,
+          status: "Active",
+          role: updated.role,
+          shift: updated.shift,
+          address: updated.address,
+          city: updated.city,
+          stateRegion: updated.stateRegion,
+          country: updated.country,
+          zip: updated.zip,
+          phone: updated.phone,
+          hireDate: updated.hireDate,
+          terminationDate: updated.terminationDate || undefined,
+          workType: updated.workType,
+          billingType: updated.billingType,
+          employeeRate: updated.employeeRate,
+          employeeCurrency: updated.employeeCurrency,
+          billingRateType: updated.billingRateType,
+          billingCurrency: updated.billingCurrency,
+          billingStart: updated.billingStart,
+          billingEnd: updated.billingEnd || undefined,
+        };
+        setEmployees((prev) =>
+          prev.map((e) => (e.id === summary.id ? summary : e))
+        );
+      }
+      setIsModalOpen(false);
+      setSelectedEmployee(null);
+    } catch (err) {
+      console.error("Failed to save employee:", err);
+      alert("Failed to save employee. Please try again.");
     }
-    setIsModalOpen(false);
+  };
+
+  const handleSort = (key: keyof Employee | "name") => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortConfig.key !== column) return null;
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="h-3 w-3" />
+    ) : (
+      <ChevronDown className="h-3 w-3" />
+    );
   };
 
   const nextCode = String(employees.length + 1).padStart(3, "0");
@@ -96,7 +205,7 @@ export default function AdminEmployees() {
   const filteredEmployees = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
-    return employees.filter((emp) => {
+    let items = employees.filter((emp) => {
       const matchesSearch =
         !term ||
         emp.name.toLowerCase().includes(term) ||
@@ -104,12 +213,21 @@ export default function AdminEmployees() {
         emp.department.toLowerCase().includes(term) ||
         emp.code.toLowerCase().includes(term);
 
-      const matchesStatus =
-        statusFilter === "all" ? true : emp.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
+      return matchesSearch;
     });
-  }, [employees, searchTerm, statusFilter]);
+
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        const aVal = String((a as any)[sortConfig.key] ?? "");
+        const bVal = String((b as any)[sortConfig.key] ?? "");
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return items;
+  }, [employees, searchTerm, sortConfig]);
 
   return (
     <div className="space-y-4">
@@ -139,7 +257,7 @@ export default function AdminEmployees() {
               {filteredEmployees.length}
             </span>
             <span>employees</span>
-            {searchTerm || statusFilter !== "all" ? (
+            {searchTerm ? (
               <span className="text-[11px] text-muted">
                 (filtered from {employees.length})
               </span>
@@ -154,17 +272,6 @@ export default function AdminEmployees() {
               placeholder="Search by name, email, code..."
               className="w-full sm:w-56 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
-            <select
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as StatusFilter)
-              }
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-            >
-              <option value="all">All</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
           </div>
         </div>
 
@@ -173,15 +280,53 @@ export default function AdminEmployees() {
           <table className="min-w-full text-left text-xs sm:text-sm">
             <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
-                <th className="px-4 py-3 font-medium">Employee</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Code</th>
-                <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium hidden lg:table-cell">
-                  Department
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("name")}
+                >
+                  <div className="flex items-center gap-1">
+                    Employee <SortIcon column="name" />
+                  </div>
                 </th>
-                <th className="px-4 py-3 font-medium hidden lg:table-cell">
-                  Location
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("status")}
+                >
+                  <div className="flex items-center gap-1">
+                    Status <SortIcon column="status" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("code")}
+                >
+                  <div className="flex items-center gap-1">
+                    Code <SortIcon column="code" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("email")}
+                >
+                  <div className="flex items-center gap-1">
+                    Email <SortIcon column="email" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium hidden lg:table-cell cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("department")}
+                >
+                  <div className="flex items-center gap-1">
+                    Department <SortIcon column="department" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium hidden lg:table-cell cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("location")}
+                >
+                  <div className="flex items-center gap-1">
+                    Location <SortIcon column="location" />
+                  </div>
                 </th>
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
@@ -260,13 +405,24 @@ export default function AdminEmployees() {
                 </tr>
               ))}
 
-              {filteredEmployees.length === 0 && (
+              {(filteredEmployees.length === 0 && !isLoading) && (
                 <tr>
                   <td
                     colSpan={7}
                     className="px-4 py-8 text-center text-sm text-muted"
                   >
                     No employees found.
+                  </td>
+                </tr>
+              )}
+
+              {isLoading && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-8 text-center text-sm text-muted"
+                  >
+                    Loading employees...
                   </td>
                 </tr>
               )}

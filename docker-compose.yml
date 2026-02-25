@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: timey-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: timey_user
+      POSTGRES_PASSWORD: timey_pass
+      POSTGRES_DB: timey_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

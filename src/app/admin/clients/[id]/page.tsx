@@ -1,7 +1,8 @@
-import React from "react";
-import { notFound } from "next/navigation";
-import { initialClients } from "@/lib/clients";
-import { initialProjects } from "@/lib/projects";
+"use client";
+
+import React, { useEffect, useState, useMemo } from "react";
+import { notFound, useParams } from "next/navigation";
+import { Client, Project, fetchClientsAction, fetchProjectsAction } from "@/app/actions";
 import {
   UserCircle2,
   Mail,
@@ -10,20 +11,39 @@ import {
   Briefcase,
 } from "lucide-react";
 
-type Props = {
-  params: Promise<{ id: string }>;
-};
-
-export default async function ClientDetailPage({ params }: Props) {
-  const { id } = await params;
+export default function ClientDetailPage() {
+  const params = useParams();
+  const id = params?.id as string;
   const clientId = Number(id);
 
-  const client = initialClients.find((c) => c.id === clientId);
-  if (!client) notFound();
+  const [clients, setClients] = useState<Client[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const clientProjects = initialProjects.filter(
-    (p) => p.clientName === client.name
+  useEffect(() => {
+    Promise.all([fetchClientsAction(), fetchProjectsAction()]).then(([c, p]) => {
+      setClients(c);
+      setProjects(p);
+      setIsLoading(false);
+    });
+  }, []);
+
+  const client = useMemo(() => clients.find((c) => c.id === clientId), [clients, clientId]);
+
+  const clientProjects = useMemo(() =>
+    projects.filter((p) => p.clientId === clientId),
+    [projects, clientId]
   );
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-background text-muted">
+        Loading client details...
+      </main>
+    );
+  }
+
+  if (!client) return notFound();
 
   return (
     <main className="space-y-6">

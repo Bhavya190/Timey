@@ -1,6 +1,7 @@
 "use client";
 
 import { ThemeProvider } from "next-themes";
+import { UserProvider } from "@/components/UserProvider";
 
 export function AppThemeProvider({ children }: { children: React.ReactNode }) {
   return (
@@ -11,7 +12,7 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
       themes={["light", "dark"]}
     >
-      {children}
+      <UserProvider>{children}</UserProvider>
     </ThemeProvider>
   );
 }

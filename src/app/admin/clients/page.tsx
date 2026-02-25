@@ -1,38 +1,53 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Client, initialClients } from "@/lib/clients";
+import { Client } from "@/lib/clients";
+import {
+  fetchClientsAction,
+  createClientAction,
+  updateClientAction,
+  deleteClientAction,
+} from "@/app/actions";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import ClientModal from "@/components/ClientModal";
 
 function StatusBadge({ status }: { status: Client["status"] }) {
   const isActive = status === "Active";
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${
-        isActive
-          ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/40"
-          : "bg-muted text-muted-foreground border-border"
-      }`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${isActive
+        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/40"
+        : "bg-muted text-muted-foreground border-border"
+        }`}
     >
       {status}
     </span>
   );
 }
 
-type StatusFilter = "All" | "Active" | "Inactive";
-
 export default function AdminClients() {
   const router = useRouter();
 
-  const [clients, setClients] = useState<Client[]>(initialClients);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchClientsAction().then((data) => {
+      setClients(data);
+      setIsLoading(false);
+    });
+  }, []);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof Client | "name";
+    direction: "asc" | "desc";
+  }>({ key: "name", direction: "asc" });
 
   const handleRowClick = (id: number) => {
     router.push(`/admin/clients/${id}`);
@@ -42,9 +57,15 @@ export default function AdminClients() {
     setOpenMenuId((prev) => (prev === id ? null : id));
   };
 
-  const handleRemove = (id: number) => {
-    setClients((prev) => prev.filter((c) => c.id !== id));
-    setOpenMenuId(null);
+  const handleRemove = async (id: number) => {
+    try {
+      await deleteClientAction(id);
+      setClients((prev) => prev.filter((c) => c.id !== id));
+      setOpenMenuId(null);
+    } catch (err) {
+      console.error("Failed to delete client:", err);
+      alert("Failed to delete client. Please try again.");
+    }
   };
 
   const handleView = (client: Client) => {
@@ -65,14 +86,41 @@ export default function AdminClients() {
     setIsModalOpen(true);
   };
 
-  const handleSaveClient = (client: Client) => {
-    if (modalMode === "add") {
-      setClients((prev) => [...prev, client]);
-    } else {
-      setClients((prev) =>
-        prev.map((c) => (c.id === client.id ? client : c))
-      );
+  const handleSaveClient = async (client: Client) => {
+    try {
+      if (modalMode === "add") {
+        const { id, ...data } = client;
+        const created = await createClientAction(data);
+        setClients((prev) => [...prev, created]);
+      } else {
+        const { id, ...data } = client;
+        const updated = await updateClientAction(id, data);
+        setClients((prev) =>
+          prev.map((c) => (c.id === id ? updated : c))
+        );
+      }
+      setIsModalOpen(false);
+      setSelectedClient(null);
+    } catch (err) {
+      console.error("Failed to save client:", err);
+      alert("Failed to save client. Please try again.");
     }
+  };
+
+  const handleSort = (key: keyof Client | "name") => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortConfig.key !== column) return null;
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="h-3 w-3" />
+    ) : (
+      <ChevronDown className="h-3 w-3" />
+    );
   };
 
   const nextId =
@@ -81,7 +129,7 @@ export default function AdminClients() {
   const filteredClients = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
-    return clients.filter((client) => {
+    let items = clients.filter((client) => {
       const matchesSearch =
         !term ||
         client.name.toLowerCase().includes(term) ||
@@ -89,12 +137,21 @@ export default function AdminClients() {
         client.email.toLowerCase().includes(term) ||
         client.country.toLowerCase().includes(term);
 
-      const matchesStatus =
-        statusFilter === "All" ? true : client.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
+      return matchesSearch;
     });
-  }, [clients, searchTerm, statusFilter]);
+
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        const aVal = (a as any)[sortConfig.key] ?? "";
+        const bVal = (b as any)[sortConfig.key] ?? "";
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return items;
+  }, [clients, searchTerm, sortConfig]);
 
   return (
     <div className="space-y-4">
@@ -124,7 +181,7 @@ export default function AdminClients() {
               {filteredClients.length}
             </span>
             <span>clients</span>
-            {(searchTerm || statusFilter !== "All") && (
+            {searchTerm && (
               <span className="text-[11px] text-muted">
                 (filtered from {clients.length})
               </span>
@@ -139,17 +196,6 @@ export default function AdminClients() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full sm:w-56 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
-            <select
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as StatusFilter)
-              }
-              className="hidden sm:block rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-            >
-              <option value="All">All</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
           </div>
         </div>
 
@@ -158,11 +204,46 @@ export default function AdminClients() {
           <table className="min-w-full text-left text-xs sm:text-sm">
             <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
-                <th className="px-4 py-3 font-medium">Client</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Nickname</th>
-                <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium">Country</th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("name")}
+                >
+                  <div className="flex items-center gap-1">
+                    Client <SortIcon column="name" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("status")}
+                >
+                  <div className="flex items-center gap-1">
+                    Status <SortIcon column="status" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("nickname")}
+                >
+                  <div className="flex items-center gap-1">
+                    Nickname <SortIcon column="nickname" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("email")}
+                >
+                  <div className="flex items-center gap-1">
+                    Email <SortIcon column="email" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("country")}
+                >
+                  <div className="flex items-center gap-1">
+                    Country <SortIcon column="country" />
+                  </div>
+                </th>
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
@@ -227,13 +308,24 @@ export default function AdminClients() {
                 </tr>
               ))}
 
-              {filteredClients.length === 0 && (
+              {(filteredClients.length === 0 && !isLoading) && (
                 <tr>
                   <td
                     colSpan={6}
                     className="px-4 py-8 text-center text-sm text-muted"
                   >
                     No clients found.
+                  </td>
+                </tr>
+              )}
+
+              {isLoading && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-4 py-8 text-center text-sm text-muted"
+                  >
+                    Loading clients...
                   </td>
                 </tr>
               )}

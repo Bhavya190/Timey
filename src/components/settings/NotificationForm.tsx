@@ -1,18 +1,28 @@
-// src/components/settings/NotificationForm.tsx
-"use client";
-
-import { FormEvent, useState, ChangeEvent } from "react";
-import { SettingsApi, NotificationPayload } from "@/lib/settings";
+import { useEffect, FormEvent, useState, ChangeEvent } from "react";
+import { NotificationPayload } from "@/lib/settings";
+import { updateAdminNotificationsAction } from "@/app/actions";
+import { useUser } from "@/components/UserProvider";
 
 export default function NotificationForm() {
+  const { user, refreshUser } = useUser();
   const [form, setForm] = useState<NotificationPayload>({
-    email: true,
-    weeklyReport: false,
-    securityAlerts: true,
+    email: user?.emailNotifications ?? true,
+    weeklyReport: user?.weeklyReport ?? false,
+    securityAlerts: user?.securityAlerts ?? true,
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      setForm({
+        email: user.emailNotifications ?? true,
+        weeklyReport: user.weeklyReport ?? false,
+        securityAlerts: user.securityAlerts ?? true,
+      });
+    }
+  }, [user]);
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
     const { name, checked } = e.target;
@@ -21,11 +31,18 @@ export default function NotificationForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!user) return;
+
     setSaving(true);
     setMessage(null);
     setError(null);
     try {
-      await SettingsApi.updateNotifications(form);
+      await updateAdminNotificationsAction(user.id, {
+        emailNotifications: form.email,
+        weeklyReport: form.weeklyReport,
+        securityAlerts: form.securityAlerts,
+      });
+      await refreshUser();
       setMessage("Notification preferences saved.");
     } catch (err: any) {
       setError(err.message || "Failed to update notifications");
@@ -102,7 +119,6 @@ function ToggleRow({
       <label className="relative inline-flex items-center cursor-pointer">
         <span className="sr-only">{label}</span>
 
-        {/* peer checkbox */}
         <input
           type="checkbox"
           name={name}
@@ -111,7 +127,6 @@ function ToggleRow({
           className="sr-only peer"
         />
 
-        {/* track + knob (knob is the after: pseudo-element) */}
         <div
           className="
             w-9 h-5

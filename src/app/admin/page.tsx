@@ -1,26 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { demoUsers } from "@/lib/users";
-import { initialProjects } from "@/lib/projects";
-import { initialClients } from "@/lib/clients";
-import { initialTasks, TaskStatus } from "@/lib/tasks";
+import { TaskStatus } from "@/lib/tasks";
 import {
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  LineChart,
-  Line,
-  CartesianGrid,
-  ResponsiveContainer,
-} from "recharts";
+  fetchUsersAction,
+  fetchProjectsAction,
+  fetchClientsAction,
+  fetchTasksAction,
+  Project,
+  Client,
+  User,
+  Task as TaskType,
+} from "@/app/actions";
+import dynamic from "next/dynamic";
 import {
   BarChart3,
   Users,
@@ -31,30 +24,67 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-const COLORS = ["#22c55e", "#ef4444", "#eab308", "#3b82f6", "#a855f7"];
+const AdminDashboardCharts = dynamic(() => import("@/components/AdminDashboardCharts"), {
+  ssr: false,
+});
 
-const employees = demoUsers.filter((u) => u.role === "employee");
 
-type ProjectStatus = (typeof initialProjects)[number]["status"];
-type ClientStatus = (typeof initialClients)[number]["status"];
+
+type ProjectStatus = Project["status"];
+type ClientStatus = Client["status"];
 
 // simple YYYY-MM-DD sort helper
 const sortByDate = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-// helper to get ISO date N days ago
-const getISODateNDaysAgo = (n: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-};
+function toLocalISODate(d: Date) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getWeekRange(anchor: Date = new Date()) {
+  const day = anchor.getDay();
+  const diffToMonday = (day + 6) % 7;
+  const monday = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - diffToMonday);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  return {
+    start: toLocalISODate(monday),
+    end: toLocalISODate(sunday),
+  };
+}
 
 export default function AdminDashboard() {
-  // default to last 7 days
+  const { start: initialStart, end: initialEnd } = useMemo(() => getWeekRange(), []);
+
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | "all">(
     "all"
   );
-  const [startDate, setStartDate] = useState<string>(getISODateNDaysAgo(6));
-  const [endDate, setEndDate] = useState<string>(getISODateNDaysAgo(0));
+  const [startDate, setStartDate] = useState<string>(initialStart);
+  const [endDate, setEndDate] = useState<string>(initialEnd);
+
+  const [users, setUsers] = useState<User[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [tasks, setTasks] = useState<TaskType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetchUsersAction(),
+      fetchProjectsAction(),
+      fetchClientsAction(),
+      fetchTasksAction(),
+    ]).then(([u, p, c, t]) => {
+      setUsers(u);
+      setProjects(p);
+      setClients(c);
+      setTasks(t);
+      setIsLoading(false);
+    });
+  }, []);
+
+  const employees = useMemo(() => users.filter(u => u.role === "employee"), [users]);
 
   const isWithinRange = (date: string) => {
     if (startDate && date < startDate) return false;
@@ -65,7 +95,7 @@ export default function AdminDashboard() {
   // Filtered tasks (employee + date)
   const filteredTasks = useMemo(
     () =>
-      initialTasks.filter((t) => {
+      tasks.filter((t) => {
         const byEmployee =
           selectedEmployeeId === "all"
             ? true
@@ -73,55 +103,71 @@ export default function AdminDashboard() {
         const byDate = isWithinRange(t.date);
         return byEmployee && byDate;
       }),
-    [selectedEmployeeId, startDate, endDate]
+    [tasks, selectedEmployeeId, startDate, endDate]
   );
 
   // Project count by status (global)
   const projectStatusData = useMemo(() => {
-    const map = new Map<ProjectStatus, number>();
-    initialProjects.forEach((p) => {
+    const map = new Map<string, number>();
+    projects.forEach((p) => {
       map.set(p.status, (map.get(p.status) ?? 0) + 1);
     });
     return Array.from(map.entries()).map(([status, count]) => ({
       name: status,
       value: count,
     }));
-  }, []);
+  }, [projects]);
 
   // Client count by status (global)
   const clientStatusData = useMemo(() => {
-    const map = new Map<ClientStatus, number>();
-    initialClients.forEach((c) => {
+    const map = new Map<string, number>();
+    clients.forEach((c) => {
       map.set(c.status, (map.get(c.status) ?? 0) + 1);
     });
     return Array.from(map.entries()).map(([status, count]) => ({
       name: status,
       value: count,
     }));
-  }, []);
+  }, [clients]);
 
-  // Tasks by status (filtered)
+  // Summarized tasks (grouped by project and name)
+  const summarizedTasks = useMemo(() => {
+    const groups: Record<string, { task: TaskType; totalHours: number }> = {};
+    filteredTasks.forEach((t) => {
+      const key = `${t.projectId}-${t.name}`;
+      if (!groups[key]) {
+        groups[key] = { task: t, totalHours: 0 };
+      }
+      groups[key].totalHours += t.workedHours;
+    });
+    return Object.values(groups);
+  }, [filteredTasks]);
+
+  // Tasks by status (summarized)
   const tasksByStatusData = useMemo(() => {
     const map = new Map<TaskStatus, number>();
-    filteredTasks.forEach((t) => {
-      map.set(t.status, (map.get(t.status) ?? 0) + 1);
+    summarizedTasks.forEach(({ task }) => {
+      map.set(task.status, (map.get(task.status) ?? 0) + 1);
     });
     const ALL_STATUSES: TaskStatus[] = ["Not Started", "In Progress", "Completed"];
     return ALL_STATUSES.map((status) => ({
       name: status,
       value: map.get(status) ?? 0,
     }));
-  }, [filteredTasks]);
+  }, [summarizedTasks]);
 
-  // Tasks per date (filtered)
+  // Tasks per date (summarized count)
   const tasksByDateData = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, Set<string>>();
     filteredTasks.forEach((t) => {
-      map.set(t.date, (map.get(t.date) ?? 0) + 1);
+      if (!map.has(t.date)) {
+        map.set(t.date, new Set());
+      }
+      map.get(t.date)!.add(`${t.projectId}-${t.name}`);
     });
     return Array.from(map.entries())
       .sort(([a], [b]) => sortByDate(a, b))
-      .map(([date, count]) => ({ date, count }));
+      .map(([date, taskSet]) => ({ date, count: taskSet.size }));
   }, [filteredTasks]);
 
   // Hours per date (filtered)
@@ -137,8 +183,8 @@ export default function AdminDashboard() {
 
   // Totals
   const totalEmployees = employees.length;
-  const activeProjects = initialProjects.filter((p) => p.status === "Active").length;
-  const openTasks = filteredTasks.filter((t) => t.status !== "Completed").length;
+  const activeProjects = projects.filter((p) => p.status === "Active").length;
+  const openTasks = summarizedTasks.filter(({ task }) => task.status !== "Completed").length;
 
   const selectedEmployeeName =
     selectedEmployeeId === "all"
@@ -152,12 +198,11 @@ export default function AdminDashboard() {
   const shiftWeek = (direction: "prev" | "next") => {
     if (!startDate || !endDate) return;
     const diff = 7 * (direction === "prev" ? -1 : 1);
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    start.setDate(start.getDate() + diff);
-    end.setDate(end.getDate() + diff);
-    setStartDate(start.toISOString().slice(0, 10));
-    setEndDate(end.toISOString().slice(0, 10));
+    const [y, m, d] = startDate.split("-").map(Number);
+    const startObj = new Date(y, m - 1, d + diff);
+    const { start, end } = getWeekRange(startObj);
+    setStartDate(start);
+    setEndDate(end);
   };
 
   // format to "Jan 12, 2026"
@@ -170,14 +215,9 @@ export default function AdminDashboard() {
 
   // given an anchor date, set [Mon..Sun] week
   const setWeekFromAnchor = (anchor: Date) => {
-    const day = anchor.getDay(); // 0 Sun - 6 Sat
-    const mondayDiff = (day + 6) % 7;
-    const start = new Date(anchor);
-    start.setDate(anchor.getDate() - mondayDiff);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    setStartDate(start.toISOString().slice(0, 10));
-    setEndDate(end.toISOString().slice(0, 10));
+    const { start, end } = getWeekRange(anchor);
+    setStartDate(start);
+    setEndDate(end);
   };
 
   return (
@@ -335,183 +375,16 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Charts */}
-      <div className="grid gap-6 xl:grid-cols-3">
-        {/* Projects by status */}
-        <div className="rounded-xl border border-border bg-card p-4 flex flex-col">
-          <p className="text-xs text-muted mb-2">Projects by status</p>
-          <div className="flex-1 min-h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={projectStatusData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={70}
-                  labelLine={false}
-                >
-                  {projectStatusData.map((_, index) => (
-                    <Cell
-                      key={`p-proj-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <ul className="mt-3 space-y-1 text-[11px] text-foreground">
-            {projectStatusData.map((s, i) => (
-              <li key={s.name} className="flex items-center gap-2">
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                />
-                <span>{s.name}</span>
-                <span className="ml-auto text-muted">{s.value}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Clients by status */}
-        <div className="rounded-xl border border-border bg-card p-4 flex flex-col">
-          <p className="text-xs text-muted mb-2">Clients by status</p>
-          <div className="flex-1 min-h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={clientStatusData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={70}
-                  labelLine={false}
-                >
-                  {clientStatusData.map((_, index) => (
-                    <Cell
-                      key={`p-client-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <ul className="mt-3 space-y-1 text-[11px] text-foreground">
-            {clientStatusData.map((s, i) => (
-              <li key={s.name} className="flex items-center gap-2">
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                />
-                <span>{s.name}</span>
-                <span className="ml-auto text-muted">{s.value}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Tasks by status */}
-        <div className="rounded-xl border border-border bg-card p-4 flex flex-col">
-          <p className="text-xs text-muted mb-1">Tasks by status</p>
-          <p className="text-[11px] text-muted mb-2">
-            {selectedEmployeeName}, {dateLabel}
-          </p>
-          <div className="flex-1 min-h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={tasksByStatusData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={70}
-                  labelLine={false}
-                >
-                  {tasksByStatusData.map((_, index) => (
-                    <Cell
-                      key={`p-task-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <ul className="mt-3 space-y-1 text-[11px] text-foreground">
-            {tasksByStatusData.map((s, i) => (
-              <li key={s.name} className="flex items-center gap-2">
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                />
-                <span>{s.name}</span>
-                <span className="ml-auto text-muted">{s.value}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Tasks per date */}
-        <div className="rounded-xl border border-border bg-card p-4 flex flex-col xl:col-span-2">
-          <p className="text-xs text-muted mb-1">Tasks count by date</p>
-          <p className="text-[11px] text-muted mb-2">
-            {selectedEmployeeName}, {dateLabel}
-          </p>
-          <div className="flex-1 min-h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={tasksByDateData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 10, fill: "#9ca3af" }}
-                />
-                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#22c55e" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Hours per date */}
-        <div className="rounded-xl border border-border bg-card p-4 flex flex-col">
-          <p className="text-xs text-muted mb-1">
-            Timesheet hours by date
-          </p>
-          <p className="text-[11px] text-muted mb-2">
-            {selectedEmployeeName}, {dateLabel}
-          </p>
-          <div className="flex-1 min-h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={hoursByDateData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 10, fill: "#9ca3af" }}
-                />
-                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                <Tooltip />
-                <Line
-                  type="monotone"
-                  dataKey="hours"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
+      {/* Dynamic Charts */}
+      <AdminDashboardCharts
+        projectStatusData={projectStatusData}
+        clientStatusData={clientStatusData}
+        tasksByStatusData={tasksByStatusData}
+        tasksByDateData={tasksByDateData}
+        hoursByDateData={hoursByDateData}
+        selectedEmployeeName={selectedEmployeeName}
+        dateLabel={dateLabel}
+      />
     </div>
   );
 }

@@ -1,9 +1,17 @@
 "use client";
 
-import { useMemo, useState, useEffect, FormEvent } from "react";
-import { Task, initialTasks } from "@/lib/tasks";
-import { initialProjects } from "@/lib/projects";
-import { demoUsers } from "@/lib/users";
+import { useState, useEffect, useMemo, FormEvent } from "react";
+import {
+  fetchUsersAction,
+  fetchProjectsAction,
+  fetchTasksAction,
+  updateTaskAction,
+  createTaskAction,
+  fetchEmployeeTimesheetsAction,
+  upsertTimesheetAction,
+  getCurrentUserAction,
+} from "@/app/actions";
+import type { User, Project, Task, Timesheet } from "@/types";
 import {
   CalendarRange,
   Clock4,
@@ -20,8 +28,10 @@ import {
   FileInput,
 } from "lucide-react";
 
-const employeesById = Object.fromEntries(demoUsers.map((u) => [u.id, u]));
-const projectsById = Object.fromEntries(initialProjects.map((p) => [p.id, p]));
+
+// Helpers to get by ID from state
+const getEmployeesById = (users: User[]) => Object.fromEntries(users.map((u) => [u.id, u]));
+const getProjectsById = (projects: Project[]) => Object.fromEntries(projects.map((p) => [p.id, p]));
 
 function toLocalISODate(d: Date) {
   const year = d.getFullYear();
@@ -35,21 +45,12 @@ function getWeekRangeFromAnchor(anchor: Date): {
   startISO: string;
   endISO: string;
 } {
-  const base = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
-  const day = base.getDay();
+  const day = anchor.getDay();
   const diffToMonday = (day + 6) % 7;
-  const monday = new Date(
-    base.getFullYear(),
-    base.getMonth(),
-    base.getDate() - diffToMonday
-  );
+  const monday = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - diffToMonday);
   const days: string[] = [];
   for (let i = 0; i < 7; i++) {
-    const d = new Date(
-      monday.getFullYear(),
-      monday.getMonth(),
-      monday.getDate() + i
-    );
+    const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
     days.push(toLocalISODate(d));
   }
   return { days, startISO: days[0], endISO: days[6] };
@@ -96,27 +97,56 @@ type RowDraft = {
 
 type PlaceholderState = Record<string, number[]>;
 
-export default function EmployeeTimesheetPage() {
-  const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(null);
+export default function EmployeeTimesheetPage({ currentEmployeeId: propId }: { currentEmployeeId?: number }) {
+  const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(propId ?? null);
   const [loadingEmployee, setLoadingEmployee] = useState(true);
 
-  useEffect(() => {
-    try {
-      const stored =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem("currentEmployeeId")
-          : null;
+  const [users, setUsers] = useState<User[]>([]);
+  const [dbProjects, setDbProjects] = useState<Project[]>([]);
+  const [dbTasks, setDbTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-      if (stored) {
-        const id = Number(stored);
-        if (!Number.isNaN(id)) {
-          setCurrentEmployeeId(id);
-        }
-      }
-    } finally {
-      setLoadingEmployee(false);
-    }
+  useEffect(() => {
+    Promise.all([
+      fetchUsersAction(),
+      fetchProjectsAction(),
+      fetchTasksAction(),
+    ]).then(([u, p, t]) => {
+      setUsers(u);
+      setDbProjects(p);
+      setDbTasks(t);
+      setIsLoading(false);
+    });
   }, []);
+
+  const [dbTimesheets, setDbTimesheets] = useState<Timesheet[]>([]);
+  useEffect(() => {
+    if (currentEmployeeId == null) return;
+    fetchEmployeeTimesheetsAction(currentEmployeeId).then(setDbTimesheets);
+  }, [currentEmployeeId]);
+
+  const employeesById = useMemo(() => getEmployeesById(users), [users]);
+  const projectsById = useMemo(() => getProjectsById(dbProjects), [dbProjects]);
+
+  useEffect(() => {
+    async function loadSession() {
+      try {
+        if (propId) {
+          setCurrentEmployeeId(propId);
+        } else {
+          const session = await getCurrentUserAction();
+          if (session && session.role === "employee") {
+            setCurrentEmployeeId(session.id);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load session:", error);
+      } finally {
+        setLoadingEmployee(false);
+      }
+    }
+    loadSession();
+  }, [propId]);
 
   const [currentAnchor, setCurrentAnchor] = useState<Date>(new Date());
 
@@ -127,22 +157,18 @@ export default function EmployeeTimesheetPage() {
   const weekKey = startISO;
   const todayISO = toLocalISODate(new Date());
 
-  const [submittedWeeks, setSubmittedWeeks] = useState<Record<string, boolean>>(
-    {}
-  );
-  const isSubmitted = submittedWeeks[weekKey] === true;
+  const isSubmitted = useMemo(() => {
+    return dbTimesheets.find(ts => ts.weekStart === weekKey)?.status === "Submitted";
+  }, [dbTimesheets, weekKey]);
 
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    if (currentEmployeeId == null) return [];
-    return initialTasks.filter((t) => t.assigneeIds.includes(currentEmployeeId));
-  });
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   useEffect(() => {
-    if (currentEmployeeId == null) return;
+    if (currentEmployeeId == null || isLoading) return;
     setTasks(
-      initialTasks.filter((t) => t.assigneeIds.includes(currentEmployeeId))
+      dbTasks.filter((t) => t.assigneeIds.includes(currentEmployeeId))
     );
-  }, [currentEmployeeId]);
+  }, [currentEmployeeId, dbTasks, isLoading]);
 
   const rangeStart = startISO;
   const rangeEnd = endISO;
@@ -157,21 +183,26 @@ export default function EmployeeTimesheetPage() {
     [rangeTasks, startISO, endISO]
   );
 
+  // Revised grouping function for rows
+  const getTaskGroupKey = (t: Task) => `${t.projectId}::${t.name}::${[...(t.assigneeIds || [])].sort().join(",")}`;
+
   const displayTasks = useMemo(() => {
-    if (weekTasks.length > 0) {
-      return weekTasks.reduce<Record<number, Task>>((acc, t) => {
-        acc[t.id] = t;
-        return acc;
-      }, {});
-    }
-    return {};
+    const groups: Record<string, Task> = {};
+    weekTasks.forEach((t) => {
+      const gKey = getTaskGroupKey(t);
+      if (!groups[gKey]) {
+        groups[gKey] = t;
+      }
+    });
+    return groups;
   }, [weekTasks]);
 
-  const hoursByTaskDay: Record<number, Record<string, number>> = {};
+  const hoursByTaskDay: Record<string, Record<string, number>> = {};
   for (const t of weekTasks) {
-    if (!hoursByTaskDay[t.id]) hoursByTaskDay[t.id] = {};
-    hoursByTaskDay[t.id][t.date] =
-      (hoursByTaskDay[t.id][t.date] ?? 0) + t.workedHours;
+    const gKey = getTaskGroupKey(t);
+    if (!hoursByTaskDay[gKey]) hoursByTaskDay[gKey] = {};
+    hoursByTaskDay[gKey][t.date] =
+      (hoursByTaskDay[gKey][t.date] ?? 0) + t.workedHours;
   }
 
   const totalWorkedToday = rangeTasks
@@ -183,7 +214,7 @@ export default function EmployeeTimesheetPage() {
     0
   );
 
-  const tasksById = Object.values(displayTasks);
+  const tasksByGroup = Object.entries(displayTasks);
 
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
   const [editedHours, setEditedHours] = useState<string>("0");
@@ -191,11 +222,12 @@ export default function EmployeeTimesheetPage() {
 
   const openEditFor = (task: Task, date: string) => {
     if (isSubmitted) return;
-    const cellHours = hoursByTaskDay[task.id]?.[date] ?? 0;
+    const gKey = getTaskGroupKey(task);
     setEditTarget({ taskId: task.id, date });
+    const cellHours = hoursByTaskDay[gKey]?.[date] ?? 0;
     setEditedHours(cellHours.toString());
     const existing = weekTasks.find(
-      (t) => t.id === task.id && t.date === date
+      (t) => getTaskGroupKey(t) === gKey && t.date === date
     );
     setEditedDescription(existing?.description ?? "");
   };
@@ -206,61 +238,58 @@ export default function EmployeeTimesheetPage() {
     setEditedDescription("");
   };
 
-  const handleSaveEdit = (e: FormEvent) => {
+  const handleSaveEdit = async (e: FormEvent) => {
     e.preventDefault();
     if (!editTarget || isSubmitted) return;
     const { taskId, date } = editTarget;
     const newHours = Number(editedHours) || 0;
     const desc = editedDescription.trim() || undefined;
 
-    const matching = tasks.filter(
-      (t) => t.id === taskId && t.date === date
-    );
-    if (matching.length === 0) {
-      const anyTask = tasks.find((t) => t.id === taskId);
-      if (!anyTask) {
+    try {
+      const representative = tasks.find(t => t.id === taskId);
+      if (!representative) {
         closeEdit();
         return;
       }
-      const created: Task = {
-        ...anyTask,
-        date,
-        workedHours: newHours,
-        description: desc,
-      };
-      setTasks((prev) => [...prev, created]);
-      closeEdit();
-      return;
-    }
-
-    const currentTotal = matching.reduce(
-      (sum, t) => sum + t.workedHours,
-      0
-    );
-    const factor =
-      currentTotal > 0
-        ? newHours / currentTotal
-        : newHours / matching.length || 0;
-
-    const updatedTasks = tasks.map((t) => {
-      if (t.id !== taskId || t.date !== date) return t;
-      let newWorked = t.workedHours;
-      if (matching.length === 1) {
-        newWorked = newHours;
-      } else if (currentTotal > 0) {
-        newWorked = t.workedHours * factor;
-      } else {
-        newWorked = newHours / matching.length;
+      const gKey = getTaskGroupKey(representative);
+      const matching = tasks.filter(
+        (t) => getTaskGroupKey(t) === gKey && t.date === date
+      );
+      if (matching.length === 0) {
+        if (newHours === 0) {
+          // No task exists and new hours are 0, nothing to create
+          closeEdit();
+          return;
+        }
+        const { id, ...data } = representative;
+        const created: Task = await createTaskAction({
+          ...data,
+          date,
+          workedHours: newHours,
+          description: desc,
+        });
+        setTasks((prev) => [...prev, created]);
+        closeEdit();
+        return;
       }
-      return {
-        ...t,
-        workedHours: newWorked,
-        description: desc,
-      };
-    });
 
-    setTasks(updatedTasks);
-    closeEdit();
+      // Update existing
+      if (newHours === 0) {
+        const { deleteTaskAction } = await import("@/app/actions");
+        await deleteTaskAction(matching[0].id);
+        setTasks((prev) => prev.filter((t) => t.id !== matching[0].id));
+      } else {
+        const updated = await updateTaskAction(matching[0].id, {
+          workedHours: newHours,
+          description: desc,
+        });
+        setTasks((prev) => prev.map((t) => (t.id === updated.id && t.date === updated.date ? updated : t)));
+      }
+      closeEdit();
+    } catch (err) {
+      console.error("Failed to save timesheet edit:", err);
+      alert("Failed to save changes. Please try again.");
+    }
   };
 
   const [placeholderRowsByWeek, setPlaceholderRowsByWeek] =
@@ -304,55 +333,49 @@ export default function EmployeeTimesheetPage() {
     setShowRowEditor(true);
   };
 
-  const groupKey = (t: Task) => `${t.projectId}::${t.name}`;
 
-  const existingGroupKeysThisWeek = useMemo(() => {
-    const keys = new Set<string>();
-    weekTasks.forEach((t) => {
-      keys.add(groupKey(t));
-    });
-    return keys;
-  }, [weekTasks]);
-
-  const handleSaveRowDraft = () => {
+  const handleSaveRowDraft = async () => {
     if (!rowDraft.projectId || !rowDraft.taskId || currentEmployeeId == null)
       return;
 
-    const project = projectsById[rowDraft.projectId];
-    const sourceTask = initialTasks.find((t) => t.id === rowDraft.taskId);
+    try {
+      const project = projectsById[rowDraft.projectId];
+      const sourceTask = dbTasks.find((t) => t.id === rowDraft.taskId);
 
-    const key = `${project.id}::${sourceTask?.name ?? "New task"}`;
-    if (existingGroupKeysThisWeek.has(key)) {
+      const key = `${project.id}::${sourceTask?.name ?? "New task"}::${currentEmployeeId}`;
+      if (weekTasks.some(t => getTaskGroupKey(t) === key)) {
+        setShowRowEditor(false);
+        return;
+      }
+
+      // Create ONE entry for the first day of the week to "hold" the row
+      const created: Task = await createTaskAction({
+        name: sourceTask?.name ?? "New task",
+        projectId: project.id,
+        projectName: project.name,
+        assigneeIds: [currentEmployeeId],
+        status: "Completed",
+        billingType: "billable",
+        date: days[0],
+        workedHours: 0,
+        description: "",
+      });
+
+      setTasks((prev) => [...prev, created]);
       setShowRowEditor(false);
-      return;
-    }
 
-    const baseId = Date.now();
-
-    const newTasks: Task[] = days.map((iso) => ({
-      id: baseId,
-      name: sourceTask?.name ?? "New task",
-      projectId: project.id,
-      projectName: project.name,
-      assigneeIds: [currentEmployeeId],
-      status: "Completed",
-      billingType: "billable",
-      date: iso,
-      workedHours: 0,
-      description: "",
-    }));
-
-    setTasks((prev) => [...prev, ...newTasks]);
-    setShowRowEditor(false);
-
-    if (rowDraft.rowId !== null) {
-      setWeekPlaceholders(weekKey, (prev) =>
-        prev.filter((id) => id !== rowDraft.rowId)
-      );
+      if (rowDraft.rowId !== null) {
+        setWeekPlaceholders(weekKey, (prev) =>
+          prev.filter((id) => id !== rowDraft.rowId)
+        );
+      }
+    } catch (err) {
+      console.error("Failed to add row:", err);
+      alert("Failed to add row. Please try again.");
     }
   };
 
-  const hasAnyTasksThisWeek = tasksById.length > 0;
+  const hasAnyTasksThisWeek = tasksByGroup.length > 0;
   const hasAnyTasksInRange = rangeTasks.length > 0;
   const hasPlaceholdersThisWeek = currentPlaceholderRowIds.length > 0;
 
@@ -368,21 +391,31 @@ export default function EmployeeTimesheetPage() {
     setCurrentAnchor(d);
   };
 
-  const handleSubmitWeek = () => {
-    if (isSubmitted) return;
-    setSubmittedWeeks((prev) => ({
-      ...prev,
-      [weekKey]: true,
-    }));
+  const handleSubmitWeek = async () => {
+    if (isSubmitted || currentEmployeeId == null) return;
+    try {
+      const updated = await upsertTimesheetAction({
+        employeeId: currentEmployeeId,
+        weekStart: weekKey,
+        status: "Submitted"
+      });
+      setDbTimesheets(prev => {
+        const other = prev.filter(ts => ts.id !== updated.id);
+        return [...other, updated];
+      });
+    } catch (err) {
+      console.error("Failed to submit week:", err);
+      alert("Failed to submit week. Please try again.");
+    }
   };
 
   const employee =
     currentEmployeeId != null ? employeesById[currentEmployeeId] : undefined;
 
-  if (loadingEmployee) {
+  if (loadingEmployee || isLoading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-background text-muted">
-        Loading employee...
+        Loading timesheet...
       </main>
     );
   }
@@ -429,8 +462,21 @@ export default function EmployeeTimesheetPage() {
               {formatDateShortWithYear(startISO)} –{" "}
               {formatDateShortWithYear(endISO)}
             </span>
-            <div className="relative">
+            <div
+              className="relative h-7 w-7 cursor-pointer"
+              onClick={() => {
+                const input = document.getElementById('timesheet-date-picker') as HTMLInputElement;
+                if (input) {
+                  if (typeof input.showPicker === 'function') {
+                    input.showPicker();
+                  } else {
+                    input.click();
+                  }
+                }
+              }}
+            >
               <input
+                id="timesheet-date-picker"
                 type="date"
                 value={startISO}
                 onChange={(e) => {
@@ -438,10 +484,10 @@ export default function EmployeeTimesheetPage() {
                   const selectedDate = new Date(e.target.value);
                   setCurrentAnchor(selectedDate);
                 }}
-                className="absolute inset-0 opacity-0 cursor-pointer"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                 aria-label="Select week date"
               />
-              <div className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted hover:bg-card cursor-pointer pointer-events-none">
+              <div className="absolute inset-0 flex items-center justify-center rounded-md border border-border bg-background text-muted hover:bg-card pointer-events-none z-10">
                 <Calendar className="h-3.5 w-3.5" />
               </div>
             </div>
@@ -467,7 +513,7 @@ export default function EmployeeTimesheetPage() {
           <div>
             <p className="text-muted mb-1">Total Week Hours</p>
             <p className="text-xl font-semibold">
-              {totalWorkedRange.toFixed(2)} 
+              {totalWorkedRange.toFixed(2)}
             </p>
           </div>
         </div>
@@ -510,11 +556,10 @@ export default function EmployeeTimesheetPage() {
               type="button"
               onClick={() => openRowEditor(null)}
               disabled={isSubmitted}
-              className={`inline-flex items-center gap-1 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs ${
-                isSubmitted
-                  ? "text-muted opacity-60 cursor-not-allowed"
-                  : "text-muted hover:bg-card"
-              }`}
+              className={`inline-flex items-center gap-1 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs ${isSubmitted
+                ? "text-muted opacity-60 cursor-not-allowed"
+                : "text-muted hover:bg-card"
+                }`}
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add Task</span>
@@ -524,11 +569,10 @@ export default function EmployeeTimesheetPage() {
               type="button"
               onClick={handleSubmitWeek}
               disabled={isSubmitted}
-              className={`inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold shadow-sm ${
-                isSubmitted
-                  ? "bg-emerald-500/10 text-emerald-500 cursor-default"
-                  : "bg-emerald-500 text-slate-950 hover:bg-emerald-400"
-              }`}
+              className={`inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold shadow-sm ${isSubmitted
+                ? "bg-emerald-500/10 text-emerald-500 cursor-default"
+                : "bg-emerald-500 text-slate-950 hover:bg-emerald-400"
+                }`}
             >
               <FileInput className="h-3.5 w-3.5" />
               {isSubmitted ? "Week Submitted" : "Submit week"}
@@ -556,8 +600,8 @@ export default function EmployeeTimesheetPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
-              {tasksById.map((task) => (
-                <tr key={task.id}>
+              {tasksByGroup.map(([gKey, task]) => (
+                <tr key={gKey}>
                   <td className="px-4 py-3">
                     <p className="text-foreground font-medium">{task.name}</p>
                     <p className="text-[11px] text-muted inline-flex items-center gap-1 flex-wrap">
@@ -570,15 +614,14 @@ export default function EmployeeTimesheetPage() {
                     </p>
                   </td>
                   {days.map((iso) => {
-                    const hours = hoursByTaskDay[task.id]?.[iso] ?? 0;
+                    const hours = hoursByTaskDay[gKey]?.[iso] ?? 0;
                     return (
                       <td
                         key={iso}
-                        className={`px-3 py-3 text-center text-foreground ${
-                          isSubmitted
-                            ? "cursor-default"
-                            : "cursor-pointer hover:bg-background/70"
-                        }`}
+                        className={`px-3 py-3 text-center text-foreground ${isSubmitted
+                          ? "cursor-default"
+                          : "cursor-pointer hover:bg-background/70"
+                          }`}
                         onClick={() => !isSubmitted && openEditFor(task, iso)}
                       >
                         {hours.toFixed(2)}
@@ -586,7 +629,7 @@ export default function EmployeeTimesheetPage() {
                     );
                   })}
                   <td className="px-4 py-3 text-right text-foreground font-medium">
-                    {Object.values(hoursByTaskDay[task.id] || {})
+                    {Object.values(hoursByTaskDay[gKey] || {})
                       .reduce((sum, h) => sum + h, 0)
                       .toFixed(2)}
                   </td>
@@ -603,11 +646,10 @@ export default function EmployeeTimesheetPage() {
                           type="button"
                           onClick={() => openRowEditor(rowId)}
                           disabled={isSubmitted}
-                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-muted ${
-                            isSubmitted
-                              ? "opacity-60 cursor-not-allowed border-border"
-                              : "border-border hover:bg-background"
-                          }`}
+                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-muted ${isSubmitted
+                            ? "opacity-60 cursor-not-allowed border-border"
+                            : "border-border hover:bg-background"
+                            }`}
                           title="Edit row"
                         >
                           <Edit3 className="h-3.5 w-3.5" />
@@ -618,11 +660,10 @@ export default function EmployeeTimesheetPage() {
                             !isSubmitted && removePlaceholderRow(rowId)
                           }
                           disabled={isSubmitted}
-                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-muted ${
-                            isSubmitted
-                              ? "opacity-60 cursor-not-allowed border-border"
-                              : "border-border hover:bg-background"
-                          }`}
+                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-muted ${isSubmitted
+                            ? "opacity-60 cursor-not-allowed border-border"
+                            : "border-border hover:bg-background"
+                            }`}
                           title="Delete row"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -653,13 +694,13 @@ export default function EmployeeTimesheetPage() {
               )}
             </tbody>
 
-            {tasksById.length > 0 && (
+            {tasksByGroup.length > 0 && (
               <tfoot className="bg-background/80 border-t border-border text-xs text-muted">
                 <tr>
                   <td className="px-4 py-3 font-medium">TOTAL HOURS</td>
                   {days.map((iso) => {
-                    const dayTotal = tasksById.reduce((sum, task) => {
-                      const h = hoursByTaskDay[task.id]?.[iso] ?? 0;
+                    const dayTotal = tasksByGroup.reduce((sum, [gKey, task]) => {
+                      const h = hoursByTaskDay[gKey]?.[iso] ?? 0;
                       return sum + h;
                     }, 0);
                     return (
@@ -811,7 +852,7 @@ export default function EmployeeTimesheetPage() {
                     required
                   >
                     <option value="">Select Project</option>
-                    {initialProjects.map((p) => (
+                    {dbProjects.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
                       </option>
@@ -839,7 +880,7 @@ export default function EmployeeTimesheetPage() {
                   >
                     <option value="">Select Task</option>
                     {rowDraft.projectId !== null &&
-                      initialTasks
+                      dbTasks
                         .filter(
                           (t) => t.projectId === rowDraft.projectId
                         )

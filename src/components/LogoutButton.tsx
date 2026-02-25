@@ -2,11 +2,13 @@
 
 import { useRouter } from 'next/navigation';
 
+import { logoutAction } from '@/app/actions';
+
 export default function LogoutButton() {
   const router = useRouter();
 
-  const handleLogout = () => {
-    // here you could also clear auth state or cookies later
+  const handleLogout = async () => {
+    await logoutAction();
     router.replace('/'); // go back to login/signup
   };
 

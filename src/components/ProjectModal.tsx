@@ -2,9 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Select, { type MultiValue } from "react-select";
-import type { Project, ProjectStatus } from "@/lib/projects";
-import { demoUsers } from "@/lib/users";
-import { initialClients } from "@/lib/clients";
+import type { ProjectStatus } from "@/lib/projects";
+import { Project, fetchProjectsAction, fetchUsersAction, fetchClientsAction, User, Client } from "@/app/actions";
 import {
   Building2,
   Users,
@@ -25,15 +24,7 @@ type Props = {
   project?: Project | null;
 };
 
-const employeeOptions = demoUsers.filter((u) => u.role === "employee");
-const clientOptions = initialClients;
-
-type EmployeeOption = { value: number; label: string };
-
-const employeeSelectOptions: EmployeeOption[] = employeeOptions.map((e) => ({
-  value: e.id,
-  label: e.name,
-}));
+// type EmployeeOption = { value: number; label: string }; // moved inside ProjectModal
 
 type TabConfig = {
   key: TabKey;
@@ -57,6 +48,10 @@ export default function ProjectModal({
   project,
 }: Props) {
   const isEdit = mode === "edit";
+
+  const [employeeOptions, setEmployeeOptions] = useState<User[]>([]);
+  const [clientOptions, setClientOptions] = useState<Client[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabKey>("basic");
 
@@ -89,6 +84,13 @@ export default function ProjectModal({
 
   useEffect(() => {
     if (!open) return;
+
+    setLoadingOptions(true);
+    Promise.all([fetchClientsAction(), fetchUsersAction()]).then(([c, u]) => {
+      setClientOptions(c);
+      setEmployeeOptions(u.filter((user) => user.role === "employee" || user.role === "teamLead"));
+      setLoadingOptions(false);
+    });
 
     if (isEdit && project) {
       setName(project.name);
@@ -157,6 +159,12 @@ export default function ProjectModal({
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // If not the last tab, move to the next tab
+    if (!isLastTab) {
+      goToNextTab();
+      return;
+    }
 
     // ensure basic tab is valid even if user submits directly
     if (!validateBasicTab()) return;
@@ -276,12 +284,19 @@ export default function ProjectModal({
       backgroundColor: state.isSelected
         ? "rgba(16,185,129,0.12)"
         : state.isFocused
-        ? "rgba(148,163,184,0.15)"
-        : "transparent",
+          ? "rgba(148,163,184,0.15)"
+          : "transparent",
       color: "hsl(var(--foreground))",
       cursor: "pointer",
     }),
   };
+
+  type EmployeeOption = { value: number; label: string };
+
+  const employeeSelectOptions: EmployeeOption[] = employeeOptions.map((e) => ({
+    value: e.id,
+    label: e.name,
+  }));
 
   const selectedTeamOptions: EmployeeOption[] = employeeSelectOptions.filter(
     (opt) => teamMemberIds.includes(opt.value)
@@ -337,11 +352,10 @@ export default function ProjectModal({
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative flex items-center gap-2 px-3 py-3 text-sm font-medium transition-colors ${
-                  activeTab === tab.key
-                    ? "text-emerald-500"
-                    : "text-muted hover:text-foreground"
-                }`}
+                className={`relative flex items-center gap-2 px-3 py-3 text-sm font-medium transition-colors ${activeTab === tab.key
+                  ? "text-emerald-500"
+                  : "text-muted hover:text-foreground"
+                  }`}
               >
                 <Icon className="h-4 w-4 flex-shrink-0" />
                 <span>{tab.label}</span>
@@ -353,370 +367,370 @@ export default function ProjectModal({
           })}
         </div>
 
-        {/* Form */}
+        {/* Form & Footer combined for submission */}
         <form
           onSubmit={handleSubmit}
-          className="flex-1 overflow-y-auto px-6 py-4 space-y-4"
+          className="flex-1 overflow-hidden flex flex-col"
         >
-          {/* BASIC TAB */}
-          {activeTab === "basic" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Project Name */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  Project Name<span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                  required
-                />
-              </div>
-
-              {/* Client dropdown */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  Client<span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={clientId == null ? "" : String(clientId)}
-                  onChange={(e) => {
-                    const id =
-                      e.target.value === "" ? null : Number(e.target.value);
-                    setClientId(id);
-                    const found =
-                      id == null
-                        ? null
-                        : clientOptions.find((c) => c.id === id);
-                    setClientName(found?.name ?? "");
-                  }}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                  required
-                  disabled={clientOptions.length === 0}
-                >
-                  <option value="">
-                    {clientOptions.length === 0
-                      ? "No clients available. Add a client first."
-                      : "Select client"}
-                  </option>
-                  {clientOptions.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Team Lead */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  Team Lead<span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={teamLeadId === null ? "" : String(teamLeadId)}
-                  onChange={(e) =>
-                    setTeamLeadId(
-                      e.target.value === "" ? null : Number(e.target.value)
-                    )
-                  }
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                  required
-                >
-                  <option value="">Select team lead</option>
-                  {employeeOptions.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Project Manager */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  Project Manager
-                </label>
-                <select
-                  value={managerId === null ? "" : String(managerId)}
-                  onChange={(e) =>
-                    setManagerId(
-                      e.target.value === "" ? null : Number(e.target.value)
-                    )
-                  }
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                >
-                  <option value="">Select manager</option>
-                  {employeeOptions.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Project Code */}
-              <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-medium text-foreground">
-                  Project Code<span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="PRJ-001"
-                  className="w-full max-w-xs rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                  required
-                />
-              </div>
-            </div>
-          )}
-
-          {/* TEAM TAB */}
-          {activeTab === "team" && (
-            <div className="space-y-3">
-              <p className="text-xs text-muted">
-                Select one or more employees to assign them to this project
-                team.
-              </p>
-
-              {teamMemberIds.length > 0 && (
-                <div className="flex flex-wrap gap-2 pb-1">
-                  {teamMemberIds.map((id) => (
-                    <span
-                      key={id}
-                      className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-500"
-                    >
-                      {getEmployeeName(id)}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setTeamMemberIds((prev) =>
-                            prev.filter((x) => x !== id)
-                          )
-                        }
-                        className="text-[10px] leading-none"
-                      >
-                        ✕
-                      </button>
-                    </span>
-                  ))}
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            {/* BASIC TAB */}
+            {activeTab === "basic" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Project Name */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Project Name<span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                    required
+                  />
                 </div>
+
+                {/* Client dropdown */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Client<span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={clientId == null ? "" : String(clientId)}
+                    onChange={(e) => {
+                      const id =
+                        e.target.value === "" ? null : Number(e.target.value);
+                      setClientId(id);
+                      const found =
+                        id == null
+                          ? null
+                          : clientOptions.find((c) => c.id === id);
+                      setClientName(found?.name ?? "");
+                    }}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                    required
+                    disabled={clientOptions.length === 0}
+                  >
+                    <option value="">
+                      {clientOptions.length === 0
+                        ? "No clients available. Add a client first."
+                        : "Select client"}
+                    </option>
+                    {clientOptions.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Team Lead */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Team Lead<span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={teamLeadId === null ? "" : String(teamLeadId)}
+                    onChange={(e) =>
+                      setTeamLeadId(
+                        e.target.value === "" ? null : Number(e.target.value)
+                      )
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                    required
+                  >
+                    <option value="">Select team lead</option>
+                    {employeeOptions.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Project Manager */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Project Manager
+                  </label>
+                  <select
+                    value={managerId === null ? "" : String(managerId)}
+                    onChange={(e) =>
+                      setManagerId(
+                        e.target.value === "" ? null : Number(e.target.value)
+                      )
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  >
+                    <option value="">Select manager</option>
+                    {employeeOptions.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Project Code */}
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-xs font-medium text-foreground">
+                    Project Code<span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder="PRJ-001"
+                    className="w-full max-w-xs rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* TEAM TAB */}
+            {activeTab === "team" && (
+              <div className="space-y-3">
+                <p className="text-xs text-muted">
+                  Select one or more employees to assign them to this project
+                  team.
+                </p>
+
+                {teamMemberIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pb-1">
+                    {teamMemberIds.map((id) => (
+                      <span
+                        key={id}
+                        className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-500"
+                      >
+                        {getEmployeeName(id)}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTeamMemberIds((prev) =>
+                              prev.filter((x) => x !== id)
+                            )
+                          }
+                          className="text-[10px] leading-none"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <Select
+                  isMulti
+                  options={employeeSelectOptions}
+                  value={selectedTeamOptions}
+                  onChange={(newValue) => {
+                    const arr = (newValue as MultiValue<EmployeeOption>) ?? [];
+                    const ids = arr.map((opt) => opt.value);
+                    setTeamMemberIds(ids);
+                  }}
+                  placeholder="Select team member(s)"
+                  classNamePrefix="react-select"
+                  styles={employeeSelectStyles}
+                  isClearable={false}
+                  components={{ ClearIndicator: () => null }}
+                  menuPlacement="auto"
+                  menuPosition="absolute"
+                  menuShouldScrollIntoView={false}
+                />
+              </div>
+            )}
+
+            {/* BILLING TAB */}
+            {activeTab === "billing" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Default Billing Rate
+                  </label>
+                  <input
+                    type="number"
+                    value={defaultBillingRate}
+                    onChange={(e) => setDefaultBillingRate(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Project billing type
+                  </label>
+                  <select
+                    value={billingType}
+                    onChange={(e) =>
+                      setBillingType(e.target.value as "fixed" | "hourly")
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  >
+                    <option value="fixed">Fixed bid</option>
+                    <option value="hourly">Per hour</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Fixed cost
+                  </label>
+                  <input
+                    type="number"
+                    value={fixedCost}
+                    onChange={(e) => setFixedCost(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  />
+                </div>
+
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-xs font-medium text-foreground">
+                    Invoice (pdf)
+                  </label>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) =>
+                      setInvoiceFile(e.target.files?.[0] ?? null)
+                    }
+                    className="block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2 file:text-xs file:font-medium file:text-foreground hover:file:bg-muted/80"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ADVANCED TAB */}
+            {activeTab === "advanced" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-xs font-medium text-foreground">
+                    Project Description
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={4}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Duration
+                  </label>
+                  <input
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                    placeholder="e.g. 3 months"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Estimated Cost
+                  </label>
+                  <input
+                    type="number"
+                    value={estimatedCost}
+                    onChange={(e) => setEstimatedCost(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Project Status
+                  </label>
+                  <select
+                    value={status}
+                    onChange={(e) =>
+                      setStatus(e.target.value as ProjectStatus)
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="On Hold">On Hold</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <p className="text-xs text-red-500 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2">
+                {error}
+              </p>
+            )}
+          </div>
+
+          {/* Footer inside form so submit button works */}
+          <div className="flex items-center justify-between gap-3 border-t border-border px-6 py-3">
+            <div className="flex items-center gap-3">
+              {activeTab !== "basic" && (
+                <button
+                  type="button"
+                  onClick={goToPrevTab}
+                  className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted"
+                >
+                  Back
+                </button>
               )}
-
-              <Select
-                isMulti
-                options={employeeSelectOptions}
-                value={selectedTeamOptions}
-                onChange={(newValue) => {
-                  const arr = (newValue as MultiValue<EmployeeOption>) ?? [];
-                  const ids = arr.map((opt) => opt.value);
-                  setTeamMemberIds(ids);
-                }}
-                placeholder="Select team member(s)"
-                classNamePrefix="react-select"
-                styles={employeeSelectStyles}
-                isClearable={false}
-                components={{ ClearIndicator: () => null }}
-                menuPlacement="auto"
-                menuPosition="absolute"
-                menuShouldScrollIntoView={false}
-              />
             </div>
-          )}
 
-          {/* BILLING TAB */}
-          {activeTab === "billing" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  Default Billing Rate
-                </label>
-                <input
-                  type="number"
-                  value={defaultBillingRate}
-                  onChange={(e) => setDefaultBillingRate(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  Project billing type
-                </label>
-                <select
-                  value={billingType}
-                  onChange={(e) =>
-                    setBillingType(e.target.value as "fixed" | "hourly")
-                  }
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                >
-                  <option value="fixed">Fixed bid</option>
-                  <option value="hourly">Per hour</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  Fixed cost
-                </label>
-                <input
-                  type="number"
-                  value={fixedCost}
-                  onChange={(e) => setFixedCost(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  End Date
-                </label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                />
-              </div>
-
-              <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-medium text-foreground">
-                  Invoice (pdf)
-                </label>
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) =>
-                    setInvoiceFile(e.target.files?.[0] ?? null)
-                  }
-                  className="block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2 file:text-xs file:font-medium file:text-foreground hover:file:bg-muted/80"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* ADVANCED TAB */}
-          {activeTab === "advanced" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-medium text-foreground">
-                  Project Description
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={4}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  Duration
-                </label>
-                <input
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  placeholder="e.g. 3 months"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  Estimated Cost
-                </label>
-                <input
-                  type="number"
-                  value={estimatedCost}
-                  onChange={(e) => setEstimatedCost(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  Project Status
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) =>
-                    setStatus(e.target.value as ProjectStatus)
-                  }
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                >
-                  <option value="Active">Active</option>
-                  <option value="On Hold">On Hold</option>
-                  <option value="Completed">Completed</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <p className="text-xs text-red-500 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2">
-              {error}
-            </p>
-          )}
-        </form>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between gap-3 border-t border-border px-6 py-3">
-          <div className="flex items-center gap-3">
-            {activeTab !== "basic" && (
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={goToPrevTab}
+                onClick={resetAndClose}
                 className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted"
               >
-                Back
+                Cancel
               </button>
-            )}
-          </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={resetAndClose}
-              className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted"
-            >
-              Cancel
-            </button>
-
-            {/* IMPORTANT CHANGE: no onClick here; rely on form submit on last tab */}
-            {isLastTab ? (
-              <button
-                type="submit"
-                className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
-              >
-                Save
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={goToNextTab}
-                className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
-              >
-                Next
-              </button>
-            )}
+              {isLastTab ? (
+                <button
+                  type="submit"
+                  className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+                >
+                  Save
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+                >
+                  Next
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );

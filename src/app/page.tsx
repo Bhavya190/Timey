@@ -1,61 +1,59 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { demoUsers } from "@/lib/users";
+import { loginAction } from "@/app/actions";
 import {
-  UserCircle2,
   Shield,
   Users,
   HelpCircle,
   ArrowRight,
+  Mail,
+  Lock,
+  Loader2,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-
-type Role = "admin" | "teamLead" | "employee";
+import { useUser } from "@/components/UserProvider";
 
 export default function HomePage() {
   const router = useRouter();
-  const [role, setRole] = useState<Role>("employee");
-  const [selectedUserId, setSelectedUserId] = useState<number | "">("");
+  const { refreshUser } = useUser();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const admins = useMemo(
-    () => demoUsers.filter((u) => u.role === "admin"),
-    []
-  );
-  const teamLeads = useMemo(
-    () => demoUsers.filter((u) => u.role === "teamLead"),
-    []
-  );
-  const employees = useMemo(
-    () => demoUsers.filter((u) => u.role === "employee"),
-    []
-  );
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
 
-  const optionsForRole: Record<Role, typeof demoUsers> = {
-    admin: admins,
-    teamLead: teamLeads,
-    employee: employees,
-  };
+    try {
+      const { loginAction } = await import("@/app/actions");
+      const result = await loginAction(email, password);
 
-  const handleLogin = () => {
-    if (!selectedUserId) return;
+      if (result.success) {
+        if (result.token) {
+          sessionStorage.setItem("auth_token", result.token);
+        }
 
-    const user = demoUsers.find((u) => u.id === selectedUserId);
-    if (!user) return;
+        // Force refresh the user context before redirecting
+        await refreshUser();
 
-    if (user.role === "employee") {
-      window.localStorage.setItem("currentEmployeeId", String(user.id));
-    } else {
-      window.localStorage.removeItem("currentEmployeeId");
-    }
-
-    if (user.role === "admin") {
-      router.replace("/admin");
-    } else if (user.role === "teamLead") {
-      router.replace("/admin"); // team lead → admin dashboard for now
-    } else {
-      router.replace("/employee");
+        if (result.role === "admin" || result.role === "teamLead") {
+          router.replace("/admin");
+        } else {
+          router.replace("/employee");
+        }
+      } else {
+        // Assuming if result.success is false, there's an error message in result.message
+        // or a generic error should be shown.
+        setError(result.message || "Invalid email or password");
+      }
+    } catch (err: any) {
+      setError(err.message || "Invalid email or password");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -80,113 +78,98 @@ export default function HomePage() {
       {/* center card */}
       <section className="flex-1 flex items-center justify-center px-4 pb-10">
         <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl px-6 py-8 md:px-8 md:py-10">
-          <div className="mb-6 text-center">
+          <div className="mb-8 text-center">
             <h1 className="text-2xl md:text-3xl font-semibold mb-2">
               Sign in to Timey
             </h1>
             <p className="text-sm text-muted">
-              Pick your role and profile to enter the right dashboard.
+              Enter your credentials to access your dashboard.
             </p>
           </div>
 
-          {/* role pills */}
-          <div className="mb-5">
-            <p className="mb-2 text-xs font-medium text-muted">Role</p>
-            <div className="inline-flex w-full rounded-full bg-background/80 border border-border p-1 text-xs">
-              {(["admin", "teamLead", "employee"] as Role[]).map((r) => {
-                const isActive = r === role;
-                const label =
-                  r === "admin"
-                    ? "Admin"
-                    : r === "teamLead"
-                    ? "Team lead"
-                    : "Employee";
-                const Icon = r === "admin" ? Shield : UserCircle2;
+          <form onSubmit={handleLogin} className="space-y-4">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/40 text-red-500 text-xs py-2 px-3 rounded-lg text-center font-medium">
+                {error}
+              </div>
+            )}
 
-                return (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => {
-                      setRole(r);
-                      setSelectedUserId("");
-                    }}
-                    className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 font-medium transition-colors ${
-                      isActive
-                        ? "bg-emerald-500 text-slate-950"
-                        : "text-muted hover:bg-emerald-500/5"
-                    }`}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {label}
-                  </button>
-                );
-              })}
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-muted">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@company.com"
+                  required
+                  className="w-full rounded-lg border border-border bg-background pl-9 pr-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 transition-colors"
+                />
+              </div>
             </div>
-          </div>
 
-          {/* profile select */}
-          <div className="mb-6 space-y-2">
-            <label className="block text-xs font-medium text-muted">
-              {role === "admin"
-                ? "Admin account"
-                : role === "teamLead"
-                ? "Team lead account"
-                : "Employee account"}
-            </label>
-            <div className="relative">
-              <UserCircle2 className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
-              <select
-                value={selectedUserId}
-                onChange={(e) =>
-                  setSelectedUserId(
-                    e.target.value === "" ? "" : Number(e.target.value)
-                  )
-                }
-                className="w-full rounded-lg border border-border bg-background pl-9 pr-3 py-2.5 text-xs outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 transition-colors"
-              >
-                <option value="">
-                  {optionsForRole[role].length === 0
-                    ? "No users for this role"
-                    : "Choose profile"}
-                </option>
-                {optionsForRole[role].map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} · {user.email}
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-medium text-muted">
+                  Password
+                </label>
+                <button type="button" className="text-[10px] text-emerald-500 hover:text-emerald-400 font-medium">
+                  Forgot password?
+                </button>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full rounded-lg border border-border bg-background pl-9 pr-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 transition-colors"
+                />
+              </div>
             </div>
-          </div>
 
-          {/* CTA */}
-          <button
-            type="button"
-            onClick={handleLogin}
-            disabled={!selectedUserId}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          >
-            Continue
-            <ArrowRight className="h-4 w-4" />
-          </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  Sign In
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </form>
 
-          <p className="mt-4 text-[11px] text-muted text-center">
-            Employees are remembered via{" "}
-            <span className="font-medium">localStorage</span> so your timesheets
-            and shifts load instantly next time.
-          </p>
+          <div className="mt-8 pt-6 border-t border-border flex flex-col gap-4">
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-muted">
+              <Shield className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Secure, encrypted authentication</span>
+            </div>
 
-          <div className="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-muted">
-            <HelpCircle className="h-3.5 w-3.5" />
-            <span>
-              Need help with Timey?{" "}
-              <button
-                type="button"
-                className="text-emerald-500 hover:text-emerald-400 underline underline-offset-2"
-              >
-                Contact support
-              </button>
-            </span>
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-muted">
+              <HelpCircle className="h-3.5 w-3.5" />
+              <span>
+                Need help with Timey?{" "}
+                <button
+                  type="button"
+                  className="text-emerald-500 hover:text-emerald-400 underline underline-offset-2 transition-colors"
+                >
+                  Contact support
+                </button>
+              </span>
+            </div>
           </div>
         </div>
       </section>

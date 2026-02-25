@@ -2,9 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { demoUsers } from "@/lib/users";
-import { initialProjects } from "@/lib/projects";
-import { initialTasks } from "@/lib/tasks";
+import {
+  fetchUsersAction,
+  fetchProjectsAction,
+  fetchTasksAction,
+  getCurrentUserAction,
+} from "@/app/actions";
+import type { User, Project, Task } from "@/types";
 import {
   FolderKanban,
   FolderOpen,
@@ -12,6 +16,8 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 
 // Week helpers
@@ -45,8 +51,8 @@ function formatPrettyRange(start: Date, end: Date): string {
   return `${formatPretty(start)} \u2013 ${formatPretty(end)}`;
 }
 
-export default function EmployeeProjectsPage() {
-  const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(null);
+export default function EmployeeProjectsPage({ currentEmployeeId: propId }: { currentEmployeeId?: number }) {
+  const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(propId ?? null);
   const [loadingEmployee, setLoadingEmployee] = useState(true);
 
   // week range state
@@ -60,26 +66,52 @@ export default function EmployeeProjectsPage() {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   });
 
-  useEffect(() => {
-    try {
-      const stored =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem("currentEmployeeId")
-          : null;
+  const [users, setUsers] = useState<User[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-      if (stored) {
-        const id = Number(stored);
-        if (!Number.isNaN(id)) {
-          setCurrentEmployeeId(id);
-        }
-      }
-    } finally {
-      setLoadingEmployee(false);
-    }
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState<{
+    key: "name" | "code" | "clientName" | "status";
+    direction: "asc" | "desc";
+  } | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      fetchUsersAction(),
+      fetchProjectsAction(),
+      fetchTasksAction(),
+    ]).then(([u, p, t]) => {
+      setUsers(u);
+      setProjects(p);
+      setTasks(t);
+      setIsLoading(false);
+    });
   }, []);
 
+  useEffect(() => {
+    async function loadSession() {
+      try {
+        if (propId) {
+          setCurrentEmployeeId(propId);
+        } else {
+          const session = await getCurrentUserAction();
+          if (session && session.role === "employee") {
+            setCurrentEmployeeId(session.id);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load session:", error);
+      } finally {
+        setLoadingEmployee(false);
+      }
+    }
+    loadSession();
+  }, [propId]);
+
   const employee = currentEmployeeId
-    ? demoUsers.find((u) => u.id === currentEmployeeId)
+    ? users.find((u) => u.id === currentEmployeeId)
     : undefined;
   const employeeName = employee?.name ?? "Employee";
 
@@ -87,7 +119,7 @@ export default function EmployeeProjectsPage() {
   const employeeTasks = useMemo(() => {
     if (currentEmployeeId == null) return [];
 
-    return initialTasks.filter((t) => {
+    return tasks.filter((t) => {
       if (!t.assigneeIds.includes(currentEmployeeId)) return false;
 
       // use the existing date field on Task; adjust if your field is named differently
@@ -97,7 +129,7 @@ export default function EmployeeProjectsPage() {
       const d = new Date(taskDateValue);
       return d >= weekStart && d <= weekEnd;
     });
-  }, [currentEmployeeId, weekStart, weekEnd]);
+  }, [tasks, currentEmployeeId, weekStart, weekEnd]);
 
   const projectIds = useMemo(
     () => new Set(employeeTasks.map((t) => t.projectId)),
@@ -105,9 +137,47 @@ export default function EmployeeProjectsPage() {
   );
 
   const employeeProjects = useMemo(
-    () => initialProjects.filter((p) => projectIds.has(p.id)),
-    [projectIds]
+    () => projects.filter((p) => projectIds.has(p.id)),
+    [projects, projectIds]
   );
+
+  const sortedProjects = useMemo(() => {
+    if (!sortConfig) return employeeProjects;
+
+    return [...employeeProjects].sort((a, b) => {
+      const aValue = a[sortConfig.key] || "";
+      const bValue = b[sortConfig.key] || "";
+
+      if (aValue < bValue) {
+        return sortConfig.direction === "asc" ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === "asc" ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [employeeProjects, sortConfig]);
+
+  const handleSort = (key: "name" | "code" | "clientName" | "status") => {
+    setSortConfig((prev) => {
+      if (prev?.key === key) {
+        if (prev.direction === "asc") {
+          return { key, direction: "desc" };
+        }
+        return null;
+      }
+      return { key, direction: "asc" };
+    });
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig?.key !== key) return null;
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="h-3 w-3" />
+    ) : (
+      <ChevronDown className="h-3 w-3" />
+    );
+  };
 
   const setPickerFromRange = (date: Date) => {
     const pad = (n: number) => n.toString().padStart(2, "0");
@@ -142,10 +212,10 @@ export default function EmployeeProjectsPage() {
     setWeekEnd(endOfWeek(s));
   };
 
-  if (loadingEmployee) {
+  if (loadingEmployee || isLoading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-background text-muted">
-        Loading employee...
+        Loading projects...
       </main>
     );
   }
@@ -192,16 +262,31 @@ export default function EmployeeProjectsPage() {
               {formatPrettyRange(weekStart, weekEnd)}
             </span>
 
-            {/* calendar icon button with hidden date input */}
-            <label className="relative flex h-7 w-7 items-center justify-center rounded-md border border-border/80 bg-background/40 hover:bg-background cursor-pointer">
-              <CalendarIcon className="h-4 w-4 text-muted" />
+            <div
+              className="relative h-7 w-7 cursor-pointer"
+              onClick={() => {
+                const input = document.getElementById('projects-date-picker') as HTMLInputElement;
+                if (input) {
+                  if (typeof input.showPicker === 'function') {
+                    input.showPicker();
+                  } else {
+                    input.click();
+                  }
+                }
+              }}
+            >
               <input
+                id="projects-date-picker"
                 type="date"
                 value={pickerDate}
                 onChange={onChangePickerDate}
-                className="absolute inset-0 h-full w-full rounded-md opacity-0 cursor-pointer"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                aria-label="Select week date"
               />
-            </label>
+              <div className="absolute inset-0 flex items-center justify-center rounded-md border border-border/80 bg-background/40 hover:bg-background pointer-events-none z-10">
+                <CalendarIcon className="h-4 w-4 text-muted" />
+              </div>
+            </div>
 
             {/* right arrow */}
             <button
@@ -236,15 +321,43 @@ export default function EmployeeProjectsPage() {
           <table className="min-w-full text-left text-xs sm:text-sm">
             <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
-                <th className="px-4 py-3 font-medium">Project</th>
-                <th className="px-4 py-3 font-medium">Code</th>
-                <th className="px-4 py-3 font-medium">Client</th>
-                <th className="px-4 py-3 font-medium">Status</th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("name")}
+                >
+                  <div className="flex items-center gap-1">
+                    Project {getSortIcon("name")}
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("code")}
+                >
+                  <div className="flex items-center gap-1">
+                    Code {getSortIcon("code")}
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("clientName")}
+                >
+                  <div className="flex items-center gap-1">
+                    Client {getSortIcon("clientName")}
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("status")}
+                >
+                  <div className="flex items-center gap-1">
+                    Status {getSortIcon("status")}
+                  </div>
+                </th>
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
-              {employeeProjects.map((project) => (
+              {sortedProjects.map((project) => (
                 <tr key={project.id} className="hover:bg-background/60">
                   <td className="px-4 py-3 text-foreground">
                     {project.name}

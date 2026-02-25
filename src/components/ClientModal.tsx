@@ -75,8 +75,15 @@ export default function ClientModal({
       setName(client.name);
       setNickname(client.nickname ?? "");
       setEmail(client.email);
-      setCountry(client.country);
+      setCountry(client.country || "India");
       setStatus(client.status);
+      setAddress(client.address ?? "");
+      setCity(client.city ?? "");
+      setStateRegion(client.stateRegion ?? "");
+      setZip(client.zip ?? "");
+      setContactNumber(client.contactNumber ?? "");
+      setDefaultRate(client.defaultRate ?? "");
+      setFixedBidMode(client.fixedBidMode || false);
       setActiveTab("basic");
     } else {
       setName("");
@@ -115,19 +122,15 @@ export default function ClientModal({
       nickname: nickname || undefined,
       email,
       country,
+      address: address || undefined,
+      city: city || undefined,
+      stateRegion: stateRegion || undefined,
+      zip: zip || undefined,
+      contactNumber: contactNumber || undefined,
+      defaultRate: defaultRate || undefined,
+      fixedBidMode,
       status,
     };
-
-    console.log("Extra client data (not persisted yet):", {
-      defaultRate,
-      address,
-      city,
-      stateRegion,
-      zip,
-      contactNumber,
-      fixedBidMode,
-      invoiceFileName: invoiceFile?.name,
-    });
 
     onSave(newClient);
     onClose();
@@ -137,6 +140,28 @@ export default function ClientModal({
     setError("");
     onClose();
   };
+
+  const goNext = () => {
+    if (activeTab === "basic") {
+      if (!name || !email || !country) {
+        setError("Please fill all required Basic fields (*) before continuing.");
+        return;
+      }
+      setError("");
+      setActiveTab("details");
+    } else if (activeTab === "details") {
+      setError("");
+      setActiveTab("billing");
+    }
+  };
+
+  const goBack = () => {
+    if (activeTab === "details") setActiveTab("basic");
+    else if (activeTab === "billing") setActiveTab("details");
+  };
+
+  const isFirstStep = activeTab === "basic";
+  const isLastStep = activeTab === "billing";
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
@@ -164,11 +189,10 @@ export default function ClientModal({
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative flex items-center gap-2 px-3 py-3 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "text-emerald-500"
-                    : "text-muted hover:text-foreground"
-                }`}
+                className={`relative flex items-center gap-2 px-3 py-3 text-sm font-medium transition-colors ${isActive
+                  ? "text-emerald-500"
+                  : "text-muted hover:text-foreground"
+                  }`}
               >
                 <Icon className="h-4 w-4 flex-shrink-0" />
                 <span>{tab.label}</span>
@@ -364,7 +388,7 @@ export default function ClientModal({
         </form>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-3 bg-card">
+        <div className="flex items-center justify-between border-t border-border px-6 py-3 bg-card">
           <button
             type="button"
             onClick={resetAndClose}
@@ -372,18 +396,44 @@ export default function ClientModal({
           >
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              const form =
-                (e.currentTarget.parentElement
-                  ?.previousElementSibling as HTMLFormElement) || null;
-              form?.requestSubmit();
-            }}
-            className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
-          >
-            Save
-          </button>
+
+          <div className="flex items-center gap-3">
+            {!isFirstStep && (
+              <button
+                type="button"
+                onClick={goBack}
+                className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted"
+              >
+                Back
+              </button>
+            )}
+
+            {!isLastStep && (
+              <button
+                type="button"
+                onClick={goNext}
+                className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+              >
+                Next
+              </button>
+            )}
+
+            {isLastStep && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  const form =
+                    (e.currentTarget.parentElement
+                      ?.parentElement?.previousElementSibling as HTMLFormElement) ||
+                    null;
+                  form?.requestSubmit();
+                }}
+                className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+              >
+                Save
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

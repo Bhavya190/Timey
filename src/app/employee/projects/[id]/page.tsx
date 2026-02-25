@@ -1,15 +1,17 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useMemo } from "react";
 import { notFound } from "next/navigation";
-import { initialProjects } from "@/lib/projects";
-import { initialTasks } from "@/lib/tasks";
+import { Project } from "@/lib/projects";
+import { Task, fetchProjectsAction, fetchTasksAction, getCurrentUserAction } from "@/app/actions";
 import {
   FolderKanban,
   BadgeInfo,
   UserCheck,
   Clock3,
   ListChecks,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 
 type PageProps = {
@@ -26,45 +28,132 @@ const formatHumanDate = (iso: string) => {
   });
 };
 
-export default function EmployeeProjectDetailsPage({ params }: PageProps) {
+export default function EmployeeProjectDetailsPage({ params, currentEmployeeId: propId }: PageProps & { currentEmployeeId?: number }) {
   // Unwrap params Promise with React.use
   const { id } = use(params);
   const projectId = Number(id);
 
-  const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(null);
+  const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(propId ?? null);
   const [loadingEmployee, setLoadingEmployee] = useState(true);
 
-  useEffect(() => {
-    try {
-      const stored =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem("currentEmployeeId")
-          : null;
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [viewMode, setViewMode] = useState<"logs" | "summary">("logs");
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "date", direction: "desc" });
+  const [isLoading, setIsLoading] = useState(true);
 
-      if (stored) {
-        const parsed = Number(stored);
-        if (!Number.isNaN(parsed)) {
-          setCurrentEmployeeId(parsed);
-        }
-      }
-    } finally {
-      setLoadingEmployee(false);
-    }
+  useEffect(() => {
+    Promise.all([fetchProjectsAction(), fetchTasksAction()]).then(([p, t]) => {
+      setProjects(p);
+      setTasks(t);
+      setIsLoading(false);
+    });
   }, []);
+
+  useEffect(() => {
+    async function loadSession() {
+      try {
+        if (propId) {
+          setCurrentEmployeeId(propId);
+        } else {
+          const session = await getCurrentUserAction();
+          if (session && session.role === "employee") {
+            setCurrentEmployeeId(session.id);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load session:", error);
+      } finally {
+        setLoadingEmployee(false);
+      }
+    }
+    loadSession();
+  }, [propId]);
 
   if (Number.isNaN(projectId)) {
     notFound();
   }
 
-  const project = initialProjects.find((p) => p.id === projectId);
-  if (!project) {
+  const project = projects.find((p) => p.id === projectId);
+  if (!isLoading && !project) {
     notFound();
   }
 
-  if (loadingEmployee) {
+  const employeeTasksForProject = useMemo(() => {
+    if (currentEmployeeId === null) return [];
+    let items = tasks.filter(
+      (t) =>
+        t.projectId === projectId &&
+        t.assigneeIds.includes(currentEmployeeId)
+    );
+
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        const aVal = (a as any)[sortConfig.key];
+        const bVal = (b as any)[sortConfig.key];
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return items;
+  }, [tasks, projectId, currentEmployeeId, sortConfig]);
+
+  const summarizedTasks = useMemo(() => {
+    const groups: Record<string, { task: Task; totalHours: number }> = {};
+    employeeTasksForProject.forEach((t) => {
+      const key = t.name;
+      if (!groups[key]) {
+        groups[key] = { task: t, totalHours: 0 };
+      }
+      groups[key].totalHours += t.workedHours;
+    });
+
+    const items = Object.values(groups);
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        let aVal: any, bVal: any;
+        if (sortConfig.key === "workedHours") {
+          aVal = a.totalHours;
+          bVal = b.totalHours;
+        } else if (sortConfig.key === "name") {
+          aVal = a.task.name;
+          bVal = b.task.name;
+        } else if (sortConfig.key === "status") {
+          aVal = a.task.status;
+          bVal = b.task.status;
+        } else {
+          return 0;
+        }
+
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return items;
+  }, [employeeTasksForProject, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortConfig.key !== column) return null;
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="h-3 w-3" />
+    ) : (
+      <ChevronDown className="h-3 w-3" />
+    );
+  };
+
+  if (loadingEmployee || isLoading || !project) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-background text-muted">
-        Loading employee...
+        Loading project...
       </main>
     );
   }
@@ -77,12 +166,6 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
     );
   }
 
-  const employeeTasksForProject = initialTasks.filter(
-    (t) =>
-      t.projectId === projectId &&
-      t.assigneeIds.includes(currentEmployeeId)
-  );
-
   if (employeeTasksForProject.length === 0) {
     notFound();
   }
@@ -91,7 +174,7 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
     (sum, task) => sum + task.workedHours,
     0
   );
-  const totalTasks = employeeTasksForProject.length;
+  const totalTasksCount = employeeTasksForProject.length;
 
   return (
     <div className="space-y-4">
@@ -144,13 +227,12 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
             <p className="text-xs text-muted">Status</p>
             <p className="mt-1">
               <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                  project.status === "Active"
-                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/40"
-                    : project.status === "On Hold"
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${project.status === "Active"
+                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/40"
+                  : project.status === "On Hold"
                     ? "bg-amber-500/10 text-amber-500 border border-amber-500/40"
                     : "bg-muted/20 text-foreground border border-muted/40"
-                }`}
+                  }`}
               >
                 {project.status}
               </span>
@@ -166,7 +248,7 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
           <div>
             <p className="text-xs text-muted">Total tasks</p>
             <p className="mt-1 text-sm text-foreground">
-              {totalTasks}
+              {totalTasksCount}
             </p>
           </div>
         </div>
@@ -185,6 +267,30 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
         </div>
       </div>
 
+      {/* View Toggle */}
+      <div className="flex justify-start">
+        <div className="inline-flex rounded-lg border border-border bg-card p-1 text-xs">
+          <button
+            onClick={() => setViewMode("logs")}
+            className={`px-4 py-1.5 rounded-md font-medium transition-colors ${viewMode === "logs"
+              ? "bg-emerald-500 text-slate-950 shadow-sm"
+              : "text-muted hover:text-foreground"
+              }`}
+          >
+            Task Logs
+          </button>
+          <button
+            onClick={() => setViewMode("summary")}
+            className={`px-4 py-1.5 rounded-md font-medium transition-colors ${viewMode === "summary"
+              ? "bg-emerald-500 text-slate-950 shadow-sm"
+              : "text-muted hover:text-foreground"
+              }`}
+          >
+            Task Summary
+          </button>
+        </div>
+      </div>
+
       {/* Tasks table */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden">
         {/* <div className="flex items-center justify-between border-b border-border px-4 py-3 text-xs text-muted">
@@ -200,29 +306,74 @@ export default function EmployeeProjectDetailsPage({ params }: PageProps) {
           <table className="min-w-full text-left text-xs sm:text-sm">
             <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Task</th>
-                <th className="px-4 py-3 font-medium">Worked Hours</th>
-                <th className="px-4 py-3 font-medium">Status</th>
+                {viewMode === "logs" && (
+                  <th
+                    className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => handleSort("date")}
+                  >
+                    <div className="flex items-center gap-1">
+                      Date <SortIcon column="date" />
+                    </div>
+                  </th>
+                )}
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("name")}
+                >
+                  <div className="flex items-center gap-1">
+                    Task <SortIcon column="name" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("workedHours")}
+                >
+                  <div className="flex items-center gap-1">
+                    {viewMode === "logs" ? "Worked Hours" : "Total Hours"}
+                    <SortIcon column="workedHours" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("status")}
+                >
+                  <div className="flex items-center gap-1">
+                    Status <SortIcon column="status" />
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
-              {employeeTasksForProject.map((task) => (
-                <tr key={task.id} className="hover:bg-background/60">
-                  <td className="px-4 py-3 text-muted">
-                    {formatHumanDate(task.date)}
-                  </td>
-                  <td className="px-4 py-3 text-foreground">
-                    {task.name}
-                  </td>
-                  <td className="px-4 py-3 text-foreground">
-                    {task.workedHours.toFixed(2)}
-                  </td>
-                  <td className="px-4 py-3 text-muted">{task.status}</td>
-                </tr>
-              ))}
+              {viewMode === "logs" ? (
+                employeeTasksForProject.map((task) => (
+                  <tr key={task.id} className="hover:bg-background/60">
+                    <td className="px-4 py-3 text-muted">
+                      {formatHumanDate(task.date)}
+                    </td>
+                    <td className="px-4 py-3 text-foreground">
+                      {task.name}
+                    </td>
+                    <td className="px-4 py-3 text-foreground">
+                      {task.workedHours.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-muted">{task.status}</td>
+                  </tr>
+                ))
+              ) : (
+                summarizedTasks.map(({ task, totalHours }: { task: Task; totalHours: number }) => (
+                  <tr key={task.id} className="hover:bg-background/60">
+                    <td className="px-4 py-3 text-foreground">
+                      {task.name}
+                    </td>
+                    <td className="px-4 py-3 text-foreground font-semibold text-emerald-500">
+                      {totalHours.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-muted">{task.status}</td>
+                  </tr>
+                ))
+              )}
 
-              {employeeTasksForProject.length === 0 && (
+              {(viewMode === "logs" ? employeeTasksForProject : summarizedTasks).length === 0 && (
                 <tr>
                   <td
                     colSpan={4}

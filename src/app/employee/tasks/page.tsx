@@ -2,8 +2,14 @@
 
 import { useEffect, useMemo, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { demoUsers } from "@/lib/users";
-import { initialTasks, type Task } from "@/lib/tasks";
+import {
+  type Task,
+  fetchTasksAction,
+  fetchUsersAction,
+  type User as UserType,
+  getCurrentUserAction,
+} from "@/app/actions";
+import type { TaskStatus } from "@/types";
 import {
   MoreVertical,
   Eye,
@@ -13,12 +19,18 @@ import {
   User,
   CheckCircle2,
   CircleDot,
-  Calendar, // using plain calendar icon
+  Calendar,
   ChevronLeft,
   ChevronRight,
-} from "lucide-react"; // [web:8]
+  ChevronUp,
+  ChevronDown,
+  Trash2,
+  Save,
+} from "lucide-react";
+import type { TaskStatus as TaskStatusType } from "@/types";
 
-const employeesById = Object.fromEntries(demoUsers.map((u) => [u.id, u]));
+// Helper to get employees by ID from state
+const getEmployeesById = (users: UserType[]) => Object.fromEntries(users.map((u) => [u.id, u]));
 
 function formatHumanDate(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -35,21 +47,22 @@ type DateRange = {
   end: string;   // YYYY-MM-DD
 };
 
-function toISODate(d: Date) {
-  return d.toISOString().slice(0, 10);
+function toLocalISODate(d: Date) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 // Monday–Sunday week
 function getWeekRange(base: Date = new Date()): DateRange {
-  const day = base.getDay(); // 0 = Sun ... 6 = Sat [web:48]
-  const diffToMonday = base.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(base);
-  monday.setDate(diffToMonday);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
+  const day = base.getDay();
+  const diffToMonday = (day + 6) % 7;
+  const monday = new Date(base.getFullYear(), base.getMonth(), base.getDate() - diffToMonday);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
   return {
-    start: toISODate(monday),
-    end: toISODate(sunday),
+    start: toLocalISODate(monday),
+    end: toLocalISODate(sunday),
   };
 }
 
@@ -59,83 +72,171 @@ function addWeeks(dateStr: string, n: number) {
   return d;
 }
 
-export default function EmployeeTasksPage() {
+export default function EmployeeTasksPage({ currentEmployeeId: propId }: { currentEmployeeId?: number }) {
   const router = useRouter();
 
-  const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(null);
+  const [currentEmployeeId, setCurrentEmployeeId] = useState<number | null>(propId ?? null);
   const [loadingEmployee, setLoadingEmployee] = useState(true);
+
+  const [users, setUsers] = useState<UserType[]>([]);
+  const [dbTasks, setDbTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetchUsersAction(),
+      fetchTasksAction(),
+    ]).then(([u, t]) => {
+      setUsers(u);
+      setDbTasks(t);
+      setIsLoading(false);
+    });
+  }, []);
+
+  const employeesById = useMemo(() => getEmployeesById(users), [users]);
 
   // date range for "this week" control
   const [dateRange, setDateRange] = useState<DateRange>(() => getWeekRange());
 
   useEffect(() => {
-    try {
-      const stored =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem("currentEmployeeId")
-          : null;
-
-      if (stored) {
-        const id = Number(stored);
-        if (!Number.isNaN(id)) {
-          setCurrentEmployeeId(id);
+    async function loadSession() {
+      try {
+        if (propId) {
+          setCurrentEmployeeId(propId);
+        } else {
+          const session = await getCurrentUserAction();
+          if (session && session.role === "employee") {
+            setCurrentEmployeeId(session.id);
+          }
         }
+      } catch (error) {
+        console.error("Failed to load session:", error);
+      } finally {
+        setLoadingEmployee(false);
       }
-    } finally {
-      setLoadingEmployee(false);
     }
-  }, []);
+    loadSession();
+  }, [propId]);
 
   // All tasks for this employee (unfiltered by week)
   const employeeInitialTasks = useMemo(
     () =>
       currentEmployeeId == null
         ? []
-        : initialTasks.filter((t) => t.assigneeIds.includes(currentEmployeeId)),
-    [currentEmployeeId]
+        : dbTasks.filter((t) => t.assigneeIds.includes(currentEmployeeId)),
+    [currentEmployeeId, dbTasks]
   );
 
   // Filter by selected week range
   const filteredTasksByWeek = useMemo(() => {
-    const start = new Date(dateRange.start);
-    const end = new Date(dateRange.end);
-    end.setHours(23, 59, 59, 999);
-
-    return employeeInitialTasks.filter((t) => {
-      const taskDate = new Date(t.date);
-      return taskDate >= start && taskDate <= end;
-    });
+    const { start, end } = dateRange;
+    return employeeInitialTasks.filter(
+      (t) => t.date >= start && t.date <= end
+    );
   }, [employeeInitialTasks, dateRange]);
 
-  const [tasks, setTasks] = useState<Task[]>(filteredTasksByWeek);
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<"logs" | "summary">("logs");
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "date", direction: "desc" });
+  const [openMenuId, setOpenMenuId] = useState<number | string | null>(null);
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editedHours, setEditedHours] = useState<string>("0");
   const [editedDescription, setEditedDescription] = useState<string>("");
 
-  // keep tasks in sync with filters
-  useEffect(() => {
-    setTasks(filteredTasksByWeek);
-  }, [filteredTasksByWeek]);
+  const [editingGroup, setEditingGroup] = useState<{ projectId: number; name: string } | null>(null);
+  const [editedName, setEditedName] = useState<string>("");
+  const [editedStatus, setEditedStatus] = useState<TaskStatus>("Not Started");
+
+  // keep tasks in sync with filters and SORT them
+  const sortedTasks = useMemo(() => {
+    const items = [...filteredTasksByWeek];
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        const aVal = (a as any)[sortConfig.key];
+        const bVal = (b as any)[sortConfig.key];
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return items;
+  }, [filteredTasksByWeek, sortConfig]);
+
+  const tasks = sortedTasks;
 
   const totalHours = useMemo(
-    () => tasks.reduce((sum, t) => sum + t.workedHours, 0),
-    [tasks]
+    () => filteredTasksByWeek.reduce((sum, t) => sum + t.workedHours, 0),
+    [filteredTasksByWeek]
   );
-  const totalTasks = tasks.length;
+  const totalTasks = useMemo(
+    () => filteredTasksByWeek.filter(t => t.workedHours > 0).length,
+    [filteredTasksByWeek]
+  );
 
-  // Week navigation
-  const handlePrevWeek = () => {
-    const newBase = addWeeks(dateRange.start, -1);
-    setDateRange(getWeekRange(newBase));
+  const summarizedTasks = useMemo(() => {
+    const groups: Record<string, { task: Task; totalHours: number }> = {};
+    filteredTasksByWeek.forEach((t) => {
+      const key = `${t.projectId}-${t.name}`;
+      if (!groups[key]) {
+        groups[key] = { task: t, totalHours: 0 };
+      }
+      groups[key].totalHours += t.workedHours;
+    });
+
+    const items = Object.values(groups);
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        let aVal: any, bVal: any;
+        if (sortConfig.key === "workedHours") {
+          aVal = a.totalHours;
+          bVal = b.totalHours;
+        } else if (sortConfig.key === "name") {
+          aVal = a.task.name;
+          bVal = b.task.name;
+        } else if (sortConfig.key === "projectName") {
+          aVal = a.task.projectName;
+          bVal = b.task.projectName;
+        } else if (sortConfig.key === "status") {
+          aVal = a.task.status;
+          bVal = b.task.status;
+        } else {
+          return 0;
+        }
+
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return items;
+  }, [tasks, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
   };
 
-  const handleNextWeek = () => {
-    const newBase = addWeeks(dateRange.start, 1);
-    setDateRange(getWeekRange(newBase));
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortConfig.key !== column) return null;
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="h-3 w-3" />
+    ) : (
+      <ChevronDown className="h-3 w-3" />
+    );
   };
+
+  // Week shifted by +/- 1 week
+  const shiftWeek = (direction: "prev" | "next") => {
+    const [y, m, d] = dateRange.start.split("-").map(Number);
+    const startObj = new Date(y, m - 1, d + (direction === "prev" ? -7 : 7));
+    setDateRange(getWeekRange(startObj));
+  };
+
+  const handlePrevWeek = () => shiftWeek("prev");
+  const handleNextWeek = () => shiftWeek("next");
 
   const toggleMenu = (id: number) => {
     setOpenMenuId((prev) => (prev === id ? null : id));
@@ -143,7 +244,6 @@ export default function EmployeeTasksPage() {
 
   const handleViewProject = (task: Task) => {
     router.push(`/employee/projects/${task.projectId}`);
-    setOpenMenuId(null);
   };
 
   const handleOpenEdit = (task: Task) => {
@@ -161,20 +261,25 @@ export default function EmployeeTasksPage() {
     setEditedDescription("");
   };
 
-  const handleSaveEdit = (e: FormEvent) => {
+  const handleSaveEdit = async (e: FormEvent) => {
     e.preventDefault();
     if (!editingTask) return;
     const hours = Number(editedHours) || 0;
     const desc = editedDescription.trim() || undefined;
 
-    const updated: Task = {
-      ...editingTask,
-      workedHours: hours,
-      description: desc,
-    };
+    try {
+      const { updateTaskAction } = await import("@/app/actions");
+      const updated = await updateTaskAction(editingTask.id, {
+        workedHours: hours,
+        description: desc,
+      });
 
-    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-    handleCloseEdit();
+      setDbTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      handleCloseEdit();
+    } catch (err) {
+      console.error("Failed to update task:", err);
+      alert("Failed to update task. Please try again.");
+    }
   };
 
   const formatAssignees = (assigneeIds: number[]) => {
@@ -182,6 +287,56 @@ export default function EmployeeTasksPage() {
       return "-";
     const emp = employeesById[currentEmployeeId];
     return emp ? emp.name : "-";
+  };
+
+  const handleRemoveGroup = async (projectId: number, name: string) => {
+    try {
+      const { deleteTaskAction } = await import("@/app/actions");
+      const { start, end } = dateRange;
+      const tasksToRemove = employeeInitialTasks.filter(
+        (t) => t.projectId === projectId && t.name === name && t.date >= start && t.date <= end
+      );
+
+      await Promise.all(tasksToRemove.map((t) => deleteTaskAction(t.id)));
+      setDbTasks((prev) => prev.filter((t) => !tasksToRemove.some((rem) => rem.id === t.id)));
+    } catch (err) {
+      console.error("Failed to remove task group:", err);
+      alert("Failed to remove task group. Please try again.");
+    }
+  };
+
+  const handleSaveGroupEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingGroup) return;
+
+    try {
+      const { updateTaskAction } = await import("@/app/actions");
+      const { start, end } = dateRange;
+      const tasksToUpdate = employeeInitialTasks.filter(
+        (t) => t.projectId === editingGroup.projectId && t.name === editingGroup.name && t.date >= start && t.date <= end
+      );
+
+      const updatedResults = await Promise.all(
+        tasksToUpdate.map((t) =>
+          updateTaskAction(t.id, {
+            name: editedName,
+            status: editedStatus,
+          })
+        )
+      );
+
+      setDbTasks((prev) => {
+        let newDb = [...prev];
+        updatedResults.forEach((updated) => {
+          newDb = newDb.map((t) => (t.id === updated.id ? updated : t));
+        });
+        return newDb;
+      });
+      setEditingGroup(null);
+    } catch (err) {
+      console.error("Failed to update task group:", err);
+      alert("Failed to update task group. Please try again.");
+    }
   };
 
   const renderStatus = (status: Task["status"]) => {
@@ -209,10 +364,10 @@ export default function EmployeeTasksPage() {
     );
   };
 
-  if (loadingEmployee) {
+  if (loadingEmployee || isLoading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-background text-muted">
-        Loading employee...
+        Loading tasks...
       </main>
     );
   }
@@ -251,20 +406,43 @@ export default function EmployeeTasksPage() {
           </button>
 
           <div className="flex items-center gap-2">
-            
+
             <span>
               {formatHumanDate(dateRange.start)} &ndash;{" "}
               {formatHumanDate(dateRange.end)}
             </span>
           </div>
 
-          <button
-            type="button"
-            // hook this to a real datepicker if you want manual selection
-            className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background hover:bg-card"
+          <div
+            className="relative h-6 w-6 cursor-pointer"
+            onClick={() => {
+              const input = document.getElementById('tasks-date-picker') as HTMLInputElement;
+              if (input) {
+                if (typeof input.showPicker === 'function') {
+                  input.showPicker();
+                } else {
+                  input.click();
+                }
+              }
+            }}
           >
-            <Calendar className="h-3.5 w-3.5 text-muted" />
-          </button>
+            <input
+              id="tasks-date-picker"
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                const [y, m, d] = e.target.value.split("-").map(Number);
+                const selectedDate = new Date(y, m - 1, d);
+                setDateRange(getWeekRange(selectedDate));
+              }}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+              aria-label="Select week date"
+            />
+            <div className="absolute inset-0 flex items-center justify-center rounded-md border border-border bg-background hover:bg-card pointer-events-none z-10">
+              <Calendar className="h-3.5 w-3.5 text-muted" />
+            </div>
+          </div>
 
           <button
             type="button"
@@ -299,8 +477,31 @@ export default function EmployeeTasksPage() {
         </div>
       </div>
 
-      {/* TODO: Hook your charts to the same filtered data */}
-      {/* Example: <MyCharts tasks={tasks} dateRange={dateRange} /> */}
+      {/* View Toggle */}
+      <div className="flex justify-start">
+        <div className="inline-flex rounded-lg border border-border bg-card p-1 text-xs">
+          <button
+            onClick={() => setViewMode("logs")}
+            className={`px-4 py-1.5 rounded-md font-medium transition-colors ${viewMode === "logs"
+              ? "bg-emerald-500 text-slate-950 shadow-sm"
+              : "text-muted hover:text-foreground"
+              }`}
+          >
+            Task Logs
+          </button>
+          <button
+            onClick={() => setViewMode("summary")}
+            className={`px-4 py-1.5 rounded-md font-medium transition-colors ${viewMode === "summary"
+              ? "bg-emerald-500 text-slate-950 shadow-sm"
+              : "text-muted hover:text-foreground"
+              }`}
+          >
+            Task Summary
+          </button>
+        </div>
+      </div>
+
+      {/* Table wrapper */}
 
       {/* Table wrapper */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden">
@@ -308,64 +509,143 @@ export default function EmployeeTasksPage() {
           <table className="min-w-full text-left text-xs sm:text-sm">
             <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Task</th>
-                <th className="px-4 py-3 font-medium">Project</th>
-                <th className="px-4 py-3 font-medium">Worked Hours</th>
-                <th className="px-4 py-3 font-medium">Assigned To</th>
-                <th className="px-4 py-3 font-medium">Status</th>
+                {viewMode === "logs" && (
+                  <th
+                    className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => handleSort("date")}
+                  >
+                    <div className="flex items-center gap-1">
+                      Date <SortIcon column="date" />
+                    </div>
+                  </th>
+                )}
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("name")}
+                >
+                  <div className="flex items-center gap-1">
+                    Task <SortIcon column="name" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("projectName")}
+                >
+                  <div className="flex items-center gap-1">
+                    Project <SortIcon column="projectName" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("workedHours")}
+                >
+                  <div className="flex items-center gap-1">
+                    {viewMode === "logs" ? "Worked Hours" : "Total Hours"}
+                    <SortIcon column="workedHours" />
+                  </div>
+                </th>
+                <th className="px-4 py-3 font-medium text-muted">Assigned To</th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("status")}
+                >
+                  <div className="flex items-center gap-1">
+                    Status <SortIcon column="status" />
+                  </div>
+                </th>
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
-              {tasks.map((task) => (
-                <tr key={task.id} className="hover:bg-background/60">
-                  <td className="px-4 py-3 text-foreground">
-                    {formatHumanDate(task.date)}
-                  </td>
-                  <td className="px-4 py-3 text-foreground">{task.name}</td>
-                  <td className="px-4 py-3 text-muted">{task.projectName}</td>
-                  <td className="px-4 py-3 text-foreground">
-                    {task.workedHours.toFixed(2)}
-                  </td>
-                  <td className="px-4 py-3 text-muted">
-                    {formatAssignees(task.assigneeIds)}
-                  </td>
-                  <td className="px-4 py-3">{renderStatus(task.status)}</td>
-                  <td
-                    className="relative px-4 py-3 text-right"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      onClick={() => toggleMenu(task.id)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground hover:bg-card"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </button>
-
-                    {openMenuId === task.id && (
-                      <div className="absolute right-4 top-11 z-10 w-44 rounded-lg border border-border bg-card text-xs shadow-lg">
+              {viewMode === "logs" ? (
+                tasks.filter(t => t.workedHours > 0).map((task) => (
+                  <tr key={task.id} className="hover:bg-background/60">
+                    <td className="px-4 py-3 text-foreground">
+                      {formatHumanDate(task.date)}
+                    </td>
+                    <td className="px-4 py-3 text-foreground">{task.name}</td>
+                    <td className="px-4 py-3 text-muted">{task.projectName}</td>
+                    <td className="px-4 py-3 text-foreground">
+                      {task.workedHours.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-muted">
+                      {formatAssignees(task.assigneeIds)}
+                    </td>
+                    <td className="px-4 py-3">{renderStatus(task.status)}</td>
+                    <td className="px-4 py-3 text-right text-muted italic">
+                      read-only
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                summarizedTasks.map(({ task, totalHours }) => {
+                  const groupKey = `${task.projectId}-${task.name}`;
+                  return (
+                    <tr key={groupKey} className="hover:bg-background/60">
+                      <td className="px-4 py-3 text-foreground">{task.name}</td>
+                      <td className="px-4 py-3 text-muted">{task.projectName}</td>
+                      <td className="px-4 py-3 text-foreground font-semibold text-emerald-500">
+                        {totalHours.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-muted">
+                        {formatAssignees(task.assigneeIds)}
+                      </td>
+                      <td className="px-4 py-3">{renderStatus(task.status)}</td>
+                      <td
+                        className="relative px-4 py-3 text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <button
-                          onClick={() => handleViewProject(task)}
-                          className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-background/70"
+                          onClick={() => setOpenMenuId(openMenuId === (groupKey as any) ? null : (groupKey as any))}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground hover:bg-card"
                         >
-                          <Eye className="h-4 w-4 text-muted" />
-                          <span>View project</span>
+                          <MoreVertical className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => handleOpenEdit(task)}
-                          className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-background/70"
-                        >
-                          <Pencil className="h-4 w-4 text-muted" />
-                          <span>Edit hours</span>
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                        {openMenuId === (groupKey as any) && (
+                          <div className="absolute right-4 top-11 z-10 w-44 rounded-lg border border-border bg-card text-xs shadow-lg">
+                            <button
+                              onClick={() => {
+                                handleViewProject(task);
+                                setOpenMenuId(null);
+                              }}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-background/70"
+                            >
+                              <Eye className="h-4 w-4 text-muted" />
+                              <span>View project</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingGroup({ projectId: task.projectId, name: task.name });
+                                setEditedName(task.name);
+                                setEditedStatus(task.status as TaskStatus);
+                                setOpenMenuId(null);
+                              }}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-background/70"
+                            >
+                              <Pencil className="h-4 w-4 text-muted" />
+                              <span>Edit task</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm("Are you sure you want to remove this task and all its log entries for this week?")) {
+                                  handleRemoveGroup(task.projectId, task.name);
+                                }
+                                setOpenMenuId(null);
+                              }}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-red-500/10 text-red-500"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span>Remove task</span>
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
 
-              {tasks.length === 0 && (
+              {(viewMode === "logs" ? tasks : summarizedTasks).length === 0 && (
                 <tr>
                   <td
                     colSpan={7}
@@ -449,6 +729,71 @@ export default function EmployeeTasksPage() {
                 >
                   <CheckCircle2 className="h-3 w-3" />
                   Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Edit Group modal */}
+      {editingGroup && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md rounded-2xl bg-card text-foreground shadow-2xl border border-border overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <h2 className="text-sm font-semibold flex items-center gap-2">
+                <Pencil className="h-4 w-4 text-emerald-500" />
+                Edit Task
+              </h2>
+              <button
+                onClick={() => setEditingGroup(null)}
+                className="h-7 w-7 flex items-center justify-center rounded-full border border-border text-muted hover:bg-background"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleSaveGroupEdit}
+              className="px-5 py-4 space-y-4 text-sm"
+            >
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted uppercase tracking-wider">Task Name</label>
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted uppercase tracking-wider">Status</label>
+                <select
+                  value={editedStatus}
+                  onChange={(e) => setEditedStatus(e.target.value as TaskStatus)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                >
+                  <option value="Not Started">Not Started</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingGroup(null)}
+                  className="px-4 py-2 rounded-lg border border-border text-muted hover:bg-background transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-950 font-medium hover:bg-emerald-400 transition-colors flex items-center gap-2"
+                >
+                  <Save className="h-4 w-4" />
+                  Save Changes
                 </button>
               </div>
             </form>

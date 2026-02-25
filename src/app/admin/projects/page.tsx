@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Project, ProjectStatus, initialProjects } from "@/lib/projects";
+import { Project, ProjectStatus } from "@/lib/projects";
+import {
+  fetchProjectsAction,
+  createProjectAction,
+  updateProjectAction,
+  deleteProjectAction,
+} from "@/app/actions";
 import ProjectModal from "@/components/ProjectModal";
-import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, ChevronUp, ChevronDown } from "lucide-react";
 
 function StatusBadge({ status }: { status: ProjectStatus }) {
   const base =
@@ -45,62 +51,71 @@ const formatDateShortWithYear = (iso: string) =>
     year: "numeric",
   });
 
+function toLocalISODate(d: Date) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getWeekRange(anchor: Date = new Date()) {
+  const day = anchor.getDay();
+  const diffToMonday = (day + 6) % 7;
+  const monday = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - diffToMonday);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  return {
+    start: toLocalISODate(monday),
+    end: toLocalISODate(sunday),
+  };
+}
+
 export default function AdminProjects() {
   const router = useRouter();
 
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchProjectsAction().then((data) => {
+      setProjects(data);
+      setIsLoading(false);
+    });
+  }, []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "name", direction: "asc" });
 
   // weekly range
-  const today = new Date();
-  const todayDay = today.getDay();
-  const mondayDiff = (todayDay + 6) % 7;
-  const initialStart = new Date(today);
-  initialStart.setDate(today.getDate() - mondayDiff);
-  const initialEnd = new Date(initialStart);
-  initialEnd.setDate(initialStart.getDate() + 6);
+  const { start: initialStart, end: initialEnd } = useMemo(() => getWeekRange(), []);
 
-  const [startISO, setStartISO] = useState<string>(
-    initialStart.toISOString().slice(0, 10)
-  );
-  const [endISO, setEndISO] = useState<string>(
-    initialEnd.toISOString().slice(0, 10)
-  );
+  const [startISO, setStartISO] = useState<string>(initialStart);
+  const [endISO, setEndISO] = useState<string>(initialEnd);
 
   const goPrevWeek = () => {
-    const start = new Date(startISO);
-    const end = new Date(endISO);
-    start.setDate(start.getDate() - 7);
-    end.setDate(end.getDate() - 7);
-    setStartISO(start.toISOString().slice(0, 10));
-    setEndISO(end.toISOString().slice(0, 10));
+    const [y, m, d] = startISO.split("-").map(Number);
+    const prev = new Date(y, m - 1, d - 7);
+    const { start, end } = getWeekRange(prev);
+    setStartISO(start);
+    setEndISO(end);
   };
 
   const goNextWeek = () => {
-    const start = new Date(startISO);
-    const end = new Date(endISO);
-    start.setDate(start.getDate() + 7);
-    end.setDate(end.getDate() + 7);
-    setStartISO(start.toISOString().slice(0, 10));
-    setEndISO(end.toISOString().slice(0, 10));
+    const [y, m, d] = startISO.split("-").map(Number);
+    const next = new Date(y, m - 1, d + 7);
+    const { start, end } = getWeekRange(next);
+    setStartISO(start);
+    setEndISO(end);
   };
 
   const setWeekFromAnchor = (anchor: Date) => {
-    const day = anchor.getDay();
-    const mondayDiff = (day + 6) % 7;
-    const start = new Date(anchor);
-    start.setDate(anchor.getDate() - mondayDiff);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    setStartISO(start.toISOString().slice(0, 10));
-    setEndISO(end.toISOString().slice(0, 10));
+    const { start, end } = getWeekRange(anchor);
+    setStartISO(start);
+    setEndISO(end);
   };
 
   const handleRowClick = (id: number) => {
@@ -111,9 +126,15 @@ export default function AdminProjects() {
     setOpenMenuId((prev) => (prev === id ? null : id));
   };
 
-  const handleRemove = (id: number) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    setOpenMenuId(null);
+  const handleRemove = async (id: number) => {
+    try {
+      await deleteProjectAction(id);
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+      setOpenMenuId(null);
+    } catch (err) {
+      console.error("Failed to delete project:", err);
+      alert("Failed to delete project. Please try again.");
+    }
   };
 
   const handleView = (project: Project) => {
@@ -135,18 +156,25 @@ export default function AdminProjects() {
   };
 
   // SAVE: update list, close modal, clear selection
-  const handleSaveProject = (project: Project) => {
-    console.log("handleSaveProject called with:", project); // debug
-    if (modalMode === "add") {
-      setProjects((prev) => [...prev, project]);
-    } else {
-      setProjects((prev) =>
-        prev.map((p) => (p.id === project.id ? project : p))
-      );
+  const handleSaveProject = async (project: Project) => {
+    try {
+      if (modalMode === "add") {
+        const { id, ...data } = project;
+        const created = await createProjectAction(data);
+        setProjects((prev) => [...prev, created]);
+      } else {
+        const { id, ...data } = project;
+        const updated = await updateProjectAction(id, data);
+        setProjects((prev) =>
+          prev.map((p) => (p.id === id ? updated : p))
+        );
+      }
+      setIsModalOpen(false);
+      setSelectedProject(null);
+    } catch (err) {
+      console.error("Failed to save project:", err);
+      alert("Failed to save project. Please try again.");
     }
-
-    setIsModalOpen(false);
-    setSelectedProject(null);
   };
 
   const handleCloseModal = () => {
@@ -157,10 +185,26 @@ export default function AdminProjects() {
   const nextId =
     projects.length === 0 ? 1 : Math.max(...projects.map((p) => p.id)) + 1;
 
+  const handleSort = (key: string) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortConfig.key !== column) return null;
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="h-3 w-3" />
+    ) : (
+      <ChevronDown className="h-3 w-3" />
+    );
+  };
+
   const filteredProjects = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
-    return projects.filter((project) => {
+    const items = projects.filter((project) => {
       const projectStart =
         project.startDate && project.startDate.length >= 10
           ? project.startDate.slice(0, 10)
@@ -176,14 +220,29 @@ export default function AdminProjects() {
         !term ||
         project.name.toLowerCase().includes(term) ||
         project.code.toLowerCase().includes(term) ||
-        project.clientName.toLowerCase().includes(term);
+        project.clientName.toLowerCase().includes(term) ||
+        project.status.toLowerCase().includes(term);
 
-      const matchesStatus =
-        statusFilter === "All" ? true : project.status === statusFilter;
-
-      return inRange && matchesSearch && matchesStatus;
+      return inRange && matchesSearch;
     });
-  }, [projects, searchTerm, statusFilter, startISO, endISO]);
+
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        let aVal = (a as any)[sortConfig.key] || "";
+        let bVal = (b as any)[sortConfig.key] || "";
+
+        if (sortConfig.key === "startDate" || sortConfig.key === "endDate") {
+          aVal = aVal || (sortConfig.direction === "asc" ? "9999-99-99" : "0000-00-00");
+          bVal = bVal || (sortConfig.direction === "asc" ? "9999-99-99" : "0000-00-00");
+        }
+
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return items;
+  }, [projects, searchTerm, startISO, endISO, sortConfig]);
 
   return (
     <div className="space-y-4">
@@ -262,7 +321,7 @@ export default function AdminProjects() {
               {filteredProjects.length}
             </span>
             <span>projects</span>
-            {(searchTerm || statusFilter !== "All") && (
+            {(searchTerm) && (
               <span className="text-[11px] text-muted">
                 (filtered from {projects.length})
               </span>
@@ -275,20 +334,8 @@ export default function AdminProjects() {
               placeholder="Search projects"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-56 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full sm:w-64 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
-            <select
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as StatusFilter)
-              }
-              className="hidden sm:block rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-            >
-              <option value="All">All</option>
-              <option value="Active">Active</option>
-              <option value="On Hold">On Hold</option>
-              <option value="Completed">Completed</option>
-            </select>
           </div>
         </div>
 
@@ -297,21 +344,68 @@ export default function AdminProjects() {
           <table className="min-w-full text-left text-xs sm:text-sm">
             <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
-                <th className="px-4 py-3 font-medium">Project</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Code</th>
-                <th className="px-4 py-3 font-medium">Client</th>
-                <th className="px-4 py-3 font-medium hidden md:table-cell">
-                  Start Date
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("name")}
+                >
+                  <div className="flex items-center gap-1">
+                    Project <SortIcon column="name" />
+                  </div>
                 </th>
-                <th className="px-4 py-3 font-medium hidden md:table-cell">
-                  End Date
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("status")}
+                >
+                  <div className="flex items-center gap-1">
+                    Status <SortIcon column="status" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("code")}
+                >
+                  <div className="flex items-center gap-1">
+                    Code <SortIcon column="code" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("clientName")}
+                >
+                  <div className="flex items-center gap-1">
+                    Client <SortIcon column="clientName" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium hidden md:table-cell cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("startDate")}
+                >
+                  <div className="flex items-center gap-1">
+                    Start Date <SortIcon column="startDate" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium hidden md:table-cell cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("endDate")}
+                >
+                  <div className="flex items-center gap-1">
+                    End Date <SortIcon column="endDate" />
+                  </div>
                 </th>
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
-              {filteredProjects.length > 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-8 text-center text-sm text-muted"
+                  >
+                    Loading projects...
+                  </td>
+                </tr>
+              ) : filteredProjects.length > 0 ? (
                 filteredProjects.map((project) => (
                   <tr
                     key={project.id}

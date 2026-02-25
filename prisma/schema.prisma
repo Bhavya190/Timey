@@ -1,0 +1,138 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  employee
+  teamLead
+}
+
+enum Shift {
+  day
+  evening
+  night
+}
+
+model Employee {
+  id               Int      @id @default(autoincrement())
+  code             String   @unique
+  email            String   @unique
+  firstName        String
+  middleName       String?
+  lastName         String
+  password         String
+  role             Role     @default(employee)
+  department       String
+  location         String
+  shift            Shift    @default(day)
+  address          String
+  city             String
+  stateRegion      String
+  country          String
+  zip              String
+  phone            String
+  hireDate         String
+  terminationDate  String?
+  workType         String
+  billingType      String
+  employeeRate     String
+  employeeCurrency String
+  billingRateType  String
+  billingCurrency  String
+  billingStart     String
+  billingEnd       String?
+  avatarUrl        String?
+  
+  // Notification Preferences
+  emailNotifications Boolean @default(true)
+  weeklyReport       Boolean @default(false)
+  securityAlerts      Boolean @default(true)
+  
+  // Relations
+  assignedTasks    Task[]    @relation("AssigneeTasks")
+  ledProjects      Project[] @relation("TeamLead")
+  managedProjects  Project[] @relation("Manager")
+  projects         Project[] @relation("TeamMembers")
+  timesheets       Timesheet[]
+}
+
+model Client {
+  id            Int       @id @default(autoincrement())
+  name          String
+  nickname      String?
+  email         String    @unique
+  country       String
+  address       String?
+  city          String?
+  stateRegion   String?
+  zip           String?
+  contactNumber String?
+  defaultRate   String?
+  fixedBidMode  Boolean   @default(false)
+  status        String    @default("Active")
+  
+  // Relations
+  projects Project[]
+}
+
+model Project {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  code               String   @unique
+  clientId           Int
+  client             Client   @relation(fields: [clientId], references: [id])
+  clientName         String 
+  teamLeadId         Int?
+  teamLead           Employee? @relation("TeamLead", fields: [teamLeadId], references: [id])
+  managerId          Int?
+  manager            Employee? @relation("Manager", fields: [managerId], references: [id])
+  defaultBillingRate String?
+  billingType        String?
+  fixedCost          String?
+  startDate          String?
+  endDate            String?
+  invoiceFileName    String?
+  description        String?
+  duration           String?
+  estimatedCost      String?
+  status             String   @default("Active")
+  
+  // Relations
+  teamMembers        Employee[] @relation("TeamMembers")
+  tasks              Task[]
+}
+
+model Task {
+  id           Int      @id @default(autoincrement())
+  projectId    Int
+  project      Project  @relation(fields: [projectId], references: [id])
+  projectName  String 
+  name         String
+  workedHours  Float
+  date         String
+  status       String   @default("Not Started")
+  description  String?
+  billingType  String
+
+  // Relations
+  assignees    Employee[] @relation("AssigneeTasks")
+}
+
+model Timesheet {
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  weekStart  String   // ISO date string (Monday)
+  status     String   @default("Not Submitted")
+
+  @@unique([employeeId, weekStart])
+}

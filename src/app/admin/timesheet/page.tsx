@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useState, FormEvent } from "react";
-import { Task, initialTasks } from "@/lib/tasks";
-import { initialProjects } from "@/lib/projects";
-import { demoUsers } from "@/lib/users";
+import { useEffect, useMemo, useState, FormEvent } from "react";
+import { fetchTasksAction, fetchProjectsAction, fetchUsersAction, updateTaskAction, createTaskAction } from "@/app/actions";
+import type { Task, Project, User } from "@/types";
 import {
   CalendarRange,
   Clock4,
@@ -24,8 +23,9 @@ import {
   Save,
 } from "lucide-react";
 
-const employeesById = Object.fromEntries(demoUsers.map((u) => [u.id, u]));
-const projectsById = Object.fromEntries(initialProjects.map((p) => [p.id, p]));
+// Helpers to get by ID from state
+const getEmployeesById = (users: User[]) => Object.fromEntries(users.map((u) => [u.id, u]));
+const getProjectsById = (projects: Project[]) => Object.fromEntries(projects.map((p) => [p.id, p]));
 
 function toLocalISODate(d: Date) {
   const year = d.getFullYear();
@@ -39,21 +39,12 @@ function getWeekRangeFromAnchor(anchor: Date): {
   startISO: string;
   endISO: string;
 } {
-  const base = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
-  const day = base.getDay();
+  const day = anchor.getDay();
   const diffToMonday = (day + 6) % 7;
-  const monday = new Date(
-    base.getFullYear(),
-    base.getMonth(),
-    base.getDate() - diffToMonday
-  );
+  const monday = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - diffToMonday);
   const days: string[] = [];
   for (let i = 0; i < 7; i++) {
-    const d = new Date(
-      monday.getFullYear(),
-      monday.getMonth(),
-      monday.getDate() + i
-    );
+    const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
     days.push(toLocalISODate(d));
   }
   return { days, startISO: days[0], endISO: days[6] };
@@ -113,7 +104,26 @@ export default function AdminTimesheetPage() {
   const weekKey = startISO;
   const todayISO = toLocalISODate(new Date());
 
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetchTasksAction(),
+      fetchProjectsAction(),
+      fetchUsersAction(),
+    ]).then(([t, p, u]) => {
+      setTasks(t);
+      setProjects(p);
+      setUsers(u);
+      setIsLoading(false);
+    });
+  }, []);
+
+  const employeesById = useMemo(() => getEmployeesById(users), [users]);
+  const projectsById = useMemo(() => getProjectsById(projects), [projects]);
 
   const [projectFilter, setProjectFilter] = useState<number | "all">("all");
   const [employeeFilter, setEmployeeFilter] = useState<number | "all">("all");
@@ -173,21 +183,26 @@ export default function AdminTimesheetPage() {
     [rangeTasks, startISO, endISO]
   );
 
+  // Revised grouping function for rows
+  const getTaskGroupKey = (t: Task) => `${t.projectId}::${t.name}::${[...(t.assigneeIds || [])].sort().join(",")}`;
+
   const displayTasks = useMemo(() => {
-    if (weekTasks.length > 0) {
-      return weekTasks.reduce<Record<number, Task>>((acc, t) => {
-        acc[t.id] = t;
-        return acc;
-      }, {});
-    }
-    return {};
+    const groups: Record<string, Task> = {};
+    weekTasks.forEach((t) => {
+      const gKey = getTaskGroupKey(t);
+      if (!groups[gKey]) {
+        groups[gKey] = t;
+      }
+    });
+    return groups;
   }, [weekTasks]);
 
-  const hoursByTaskDay: Record<number, Record<string, number>> = {};
+  const hoursByTaskDay: Record<string, Record<string, number>> = {};
   for (const t of weekTasks) {
-    if (!hoursByTaskDay[t.id]) hoursByTaskDay[t.id] = {};
-    hoursByTaskDay[t.id][t.date] =
-      (hoursByTaskDay[t.id][t.date] ?? 0) + t.workedHours;
+    const gKey = getTaskGroupKey(t);
+    if (!hoursByTaskDay[gKey]) hoursByTaskDay[gKey] = {};
+    hoursByTaskDay[gKey][t.date] =
+      (hoursByTaskDay[gKey][t.date] ?? 0) + t.workedHours;
   }
 
   const totalWorkedToday = rangeTasks
@@ -206,7 +221,7 @@ export default function AdminTimesheetPage() {
     .filter((t) => t.billingType === "non-billable")
     .reduce((sum, t) => sum + t.workedHours, 0);
 
-  const tasksById = Object.values(displayTasks);
+  const tasksByGroup = Object.entries(displayTasks);
 
   const exportRows = useMemo(
     () =>
@@ -288,11 +303,12 @@ export default function AdminTimesheetPage() {
   const [editedDescription, setEditedDescription] = useState<string>("");
 
   const openEditFor = (task: Task, date: string) => {
+    const gKey = getTaskGroupKey(task);
     setEditTarget({ taskId: task.id, date });
-    const cellHours = hoursByTaskDay[task.id]?.[date] ?? 0;
+    const cellHours = hoursByTaskDay[gKey]?.[date] ?? 0;
     setEditedHours(cellHours.toString());
     const existing = weekTasks.find(
-      (t) => t.id === task.id && t.date === date
+      (t) => getTaskGroupKey(t) === gKey && t.date === date
     );
     setEditedDescription(existing?.description ?? "");
   };
@@ -303,65 +319,65 @@ export default function AdminTimesheetPage() {
     setEditedDescription("");
   };
 
-  const handleSaveEdit = (e: FormEvent) => {
+  const handleSaveEdit = async (e: FormEvent) => {
     e.preventDefault();
     if (!editTarget) return;
     const { taskId, date } = editTarget;
     const newHours = Number(editedHours) || 0;
     const desc = editedDescription.trim() || undefined;
 
-    const matching = tasks.filter(
-      (t) => t.id === taskId && t.date === date
-    );
-    if (matching.length === 0) {
-      const anyTask = tasks.find((t) => t.id === taskId);
-      if (!anyTask) {
+    try {
+      const representative = tasks.find(t => t.id === taskId);
+      if (!representative) {
         closeEdit();
         return;
       }
-      const created: Task = {
-        ...anyTask,
-        date,
-        workedHours: newHours,
-        description: desc,
-      };
-      setTasks((prev) => [...prev, created]);
-      closeEdit();
-      return;
-    }
-
-    const currentTotal = matching.reduce(
-      (sum, t) => sum + t.workedHours,
-      0
-    );
-    const factor =
-      currentTotal > 0
-        ? newHours / currentTotal
-        : newHours / matching.length || 0;
-
-    const updatedTasks = tasks.map((t) => {
-      if (t.id !== taskId || t.date !== date) return t;
-      let newWorked = t.workedHours;
-      if (matching.length === 1) {
-        newWorked = newHours;
-      } else if (currentTotal > 0) {
-        newWorked = t.workedHours * factor;
-      } else {
-        newWorked = newHours / matching.length;
+      const gKey = getTaskGroupKey(representative);
+      const matching = tasks.filter(
+        (t) => getTaskGroupKey(t) === gKey && t.date === date
+      );
+      if (matching.length === 0) {
+        if (newHours === 0) {
+          closeEdit();
+          return;
+        }
+        const { id, ...data } = representative;
+        const created: Task = await createTaskAction({
+          ...data,
+          date,
+          workedHours: newHours,
+          description: desc,
+        });
+        setTasks((prev) => [...prev, created]);
+        closeEdit();
+        return;
       }
-      return {
-        ...t,
-        workedHours: newWorked,
-        description: desc,
-      };
-    });
 
-    setTasks(updatedTasks);
-    closeEdit();
+      // Update existing
+      if (newHours === 0) {
+        const { deleteTaskAction } = await import("@/app/actions");
+        await deleteTaskAction(matching[0].id);
+        setTasks((prev) => prev.filter((t) => t.id !== matching[0].id));
+      } else {
+        const updated = await updateTaskAction(matching[0].id, {
+          workedHours: newHours,
+          description: desc,
+        });
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === updated.id && t.date === updated.date ? updated : t
+          )
+        );
+      }
+      closeEdit();
+    } catch (err) {
+      console.error("Failed to save timesheet edit:", err);
+      alert("Failed to save changes. Please try again.");
+    }
   };
 
-  const projectOptions = initialProjects;
-  const employeeOptions = demoUsers.filter((u) => u.role === "employee");
+  const projectOptions = projects;
+  const employeeOptions = users.filter((u) => u.role === "employee");
 
   const goPrevWeek = () => {
     const d = new Date(currentAnchor);
@@ -387,7 +403,7 @@ export default function AdminTimesheetPage() {
 
   const tasksByProject = useMemo(() => {
     const map: Record<number, { id: number; name: string }[]> = {};
-    initialTasks.forEach((t) => {
+    tasks.forEach((t) => {
       if (!t.projectId) return;
       if (!map[t.projectId]) map[t.projectId] = [];
       if (!map[t.projectId].some((x) => x.name === t.name)) {
@@ -395,7 +411,7 @@ export default function AdminTimesheetPage() {
       }
     });
     return map;
-  }, []);
+  }, [tasks]);
 
   // ---------- placeholder rows + row editor ----------
   const [placeholderRowsByWeek, setPlaceholderRowsByWeek] =
@@ -448,44 +464,47 @@ export default function AdminTimesheetPage() {
     return keys;
   }, [weekTasks]);
 
-  const handleSaveRowDraft = () => {
+  const handleSaveRowDraft = async () => {
     if (!rowDraft.projectId || !rowDraft.taskId) return;
 
-    const project = projectsById[rowDraft.projectId];
-    const sourceTask = initialTasks.find((t) => t.id === rowDraft.taskId);
+    try {
+      const project = projectsById[rowDraft.projectId];
+      const sourceTask = tasks.find((t) => t.id === rowDraft.taskId);
 
-    const key = `${project.id}::${sourceTask?.name ?? "New task"}`;
-    if (existingGroupKeysThisWeek.has(key)) {
+      const key = `${project.id}::${sourceTask?.name ?? "New task"}::${[...(sourceTask?.assigneeIds || [employeeOptions[0]?.id || 1])].sort().join(",")}`;
+      if (weekTasks.some(t => getTaskGroupKey(t) === key)) {
+        setShowRowEditor(false);
+        return;
+      }
+
+      // Create ONE entry for the first day of the week to "hold" the row
+      const created: Task = await createTaskAction({
+        name: sourceTask?.name ?? "New task",
+        projectId: project.id,
+        projectName: project.name,
+        assigneeIds: sourceTask?.assigneeIds || [employeeOptions[0]?.id || 1],
+        status: "Completed",
+        billingType: "billable",
+        date: days[0],
+        workedHours: 0,
+        description: "",
+      });
+
+      setTasks((prev) => [...prev, created]);
       setShowRowEditor(false);
-      return;
-    }
 
-    const baseId = Date.now();
-
-    const newTasks: Task[] = days.map((iso) => ({
-      id: baseId,
-      name: sourceTask?.name ?? "New task",
-      projectId: project.id,
-      projectName: project.name,
-      assigneeIds: [employeeOptions[0]?.id || 1],
-      status: "Completed",
-      billingType: "billable",
-      date: iso,
-      workedHours: 0,
-      description: "",
-    }));
-
-    setTasks((prev) => [...prev, ...newTasks]);
-    setShowRowEditor(false);
-
-    if (rowDraft.rowId !== null) {
-      setWeekPlaceholders(weekKey, (prev) =>
-        prev.filter((id) => id !== rowDraft.rowId)
-      );
+      if (rowDraft.rowId !== null) {
+        setWeekPlaceholders(weekKey, (prev) =>
+          prev.filter((id) => id !== rowDraft.rowId)
+        );
+      }
+    } catch (err) {
+      console.error("Failed to add row:", err);
+      alert("Failed to add row. Please try again.");
     }
   };
 
-  const hasAnyTasksThisWeek = tasksById.length > 0;
+  const hasAnyTasksThisWeek = tasksByGroup.length > 0;
   const hasAnyTasksInRange = rangeTasks.length > 0;
   const hasPlaceholdersThisWeek = currentPlaceholderRowIds.length > 0;
 
@@ -531,8 +550,15 @@ export default function AdminTimesheetPage() {
     setDateRangeFilter("this_week");
     setCustomStart("");
     setCustomEnd("");
-    setCurrentAnchor(new Date()); // back to current week
   };
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-background text-muted">
+        Loading timesheet...
+      </main>
+    );
+  }
 
   return (
     <main className="space-y-4">
@@ -725,14 +751,14 @@ export default function AdminTimesheetPage() {
           dateRangeFilter !== "this_week" ||
           customStart ||
           customEnd) && (
-          <button
-            type="button"
-            onClick={handleClearFilters}
-            className="mt-1 text-[11px] text-emerald-500 hover:underline"
-          >
-            Clear filters
-          </button>
-        )}
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="mt-1 text-[11px] text-emerald-500 hover:underline"
+            >
+              Clear filters
+            </button>
+          )}
       </section>
 
       {/* Stats */}
@@ -852,8 +878,8 @@ export default function AdminTimesheetPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
-              {tasksById.map((task) => (
-                <tr key={task.id}>
+              {tasksByGroup.map(([gKey, task]) => (
+                <tr key={gKey}>
                   <td className="px-4 py-3">
                     <p className="text-foreground font-medium">{task.name}</p>
                     <p className="text-[11px] text-muted inline-flex items-center gap-1 flex-wrap">
@@ -874,7 +900,7 @@ export default function AdminTimesheetPage() {
                     </p>
                   </td>
                   {days.map((iso) => {
-                    const hours = hoursByTaskDay[task.id]?.[iso] ?? 0;
+                    const hours = hoursByTaskDay[gKey]?.[iso] ?? 0;
                     return (
                       <td
                         key={iso}
@@ -886,7 +912,7 @@ export default function AdminTimesheetPage() {
                     );
                   })}
                   <td className="px-4 py-3 text-right text-foreground font-medium">
-                    {Object.values(hoursByTaskDay[task.id] || {})
+                    {Object.values(hoursByTaskDay[gKey] || {})
                       .reduce((sum, h) => sum + h, 0)
                       .toFixed(2)}
                   </td>
@@ -941,13 +967,13 @@ export default function AdminTimesheetPage() {
               )}
             </tbody>
 
-            {tasksById.length > 0 && (
+            {tasksByGroup.length > 0 && (
               <tfoot className="bg-background/80 border-t border-border text-xs text-muted">
                 <tr>
                   <td className="px-4 py-3 font-medium">TOTAL HOURS</td>
                   {days.map((iso) => {
-                    const dayTotal = tasksById.reduce((sum, task) => {
-                      const h = hoursByTaskDay[task.id]?.[iso] ?? 0;
+                    const dayTotal = tasksByGroup.reduce((sum, [gKey, task]) => {
+                      const h = hoursByTaskDay[gKey]?.[iso] ?? 0;
                       return sum + h;
                     }, 0);
                     return (
@@ -1095,7 +1121,7 @@ export default function AdminTimesheetPage() {
                     required
                   >
                     <option value="">Select Project</option>
-                    {initialProjects.map((p) => (
+                    {projects.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
                       </option>

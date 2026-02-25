@@ -1,10 +1,12 @@
+import prisma from "./prisma";
+
 export type ProjectStatus = "Active" | "On Hold" | "Completed";
 
 export type Project = {
   id: number;
   name: string;
   code: string;
-  clientId: number;          // ← added
+  clientId: number;
   clientName: string;
   teamLeadId: number | null;
   managerId: number | null;
@@ -21,342 +23,119 @@ export type Project = {
   status: ProjectStatus;
 };
 
-export const initialProjects: Project[] = [
-  {
-    id: 1,
-    name: "Website Redesign",
-    code: "PRJ-001",
-    clientId: 1,
-    clientName: "Acme Corporation",
-    status: "Active",
-    startDate: "2025-01-10",
-    teamLeadId: null,
-    managerId: null,
-    billingType: "hourly",
-    defaultBillingRate: "60",
-    description:
-      "Modernize the corporate marketing site and improve conversion.",
-    // Employees assigned to this project (example: 2 & 3)
-    teamMemberIds: [2, 3],
-  },
-  {
-    id: 2,
-    name: "Mobile App MVP",
-    code: "PRJ-002",
-    clientId: 2,
-    clientName: "Global Solutions Pvt Ltd",
-    status: "On Hold",
-    startDate: "2025-02-01",
-    teamLeadId: null,
-    managerId: null,
-    billingType: "fixed",
-    fixedCost: "18000",
-    description:
-      "Initial MVP for Android and iOS to validate product-market fit.",
-    teamMemberIds: [2, 4],
-  },
-  {
-    id: 3,
-    name: "Analytics Dashboard",
-    code: "PRJ-003",
-    clientId: 3,
-    clientName: "Nordic Tech AB",
-    status: "Completed",
-    startDate: "2024-11-15",
-    endDate: "2025-01-30",
-    teamLeadId: null,
-    managerId: null,
-    billingType: "hourly",
-    defaultBillingRate: "75",
-    description: "Executive analytics dashboard with real-time KPIs.",
-    teamMemberIds: [3, 5],
-  },
+export async function getProjects(): Promise<Project[]> {
+  const projects = await prisma.$queryRaw<any[]>`SELECT * FROM "Project"`;
+  const relations = await prisma.$queryRaw<any[]>`SELECT * FROM "_TeamMembers"`;
 
-  // New projects
-  {
-    id: 4,
-    name: "Marketing Site Refresh",
-    code: "PRJ-004",
-    clientId: 4,
-    clientName: "BrightStart Education",
-    status: "Active",
-    startDate: "2025-03-05",
-    teamLeadId: null,
-    managerId: null,
-    billingType: "fixed",
-    fixedCost: "12000",
-    estimatedCost: "10000",
-    description:
-      "Landing pages and SEO improvements for new product launch.",
-    teamMemberIds: [2],
-  },
-  {
-    id: 5,
-    name: "Client Self‑Service Portal",
-    code: "PRJ-005",
-    clientId: 5,
-    clientName: "FinEdge Capital",
-    status: "Active",
-    startDate: "2025-04-12",
-    teamLeadId: null,
-    managerId: null,
-    billingType: "hourly",
-    defaultBillingRate: "85",
-    description:
-      "Portal for clients to view invoices, reports, and support tickets.",
-    teamMemberIds: [4, 5],
-  },
-  {
-    id: 6,
-    name: "HR Internal Tools",
-    code: "PRJ-006",
-    clientId: 6,
-    clientName: "Inhouse HR",
-    status: "On Hold",
-    startDate: "2025-05-01",
-    teamLeadId: null,
-    managerId: null,
-    billingType: "hourly",
-    defaultBillingRate: "55",
-    description:
-      "Timesheet, leave management, and approvals for internal teams.",
-    teamMemberIds: [3],
-  },
-  {
-    id: 7,
-    name: "E‑commerce Upgrade",
-    code: "PRJ-007",
-    clientId: 7,
-    clientName: "Urban Style Retail",
-    status: "Active",
-    startDate: "2025-06-10",
-    teamLeadId: null,
-    managerId: null,
-    billingType: "fixed",
-    fixedCost: "25000",
-    description:
-      "Upgrade checkout, introduce wishlist, and improve performance.",
-    teamMemberIds: [2, 5],
-  },
-  {
-    id: 8,
-    name: "Data Migration Project",
-    code: "PRJ-008",
-    clientId: 8,
-    clientName: "HealthSync Clinics",
-    status: "Completed",
-    startDate: "2024-09-01",
-    endDate: "2025-01-05",
-    teamLeadId: null,
-    managerId: null,
-    billingType: "hourly",
-    defaultBillingRate: "90",
-    description:
-      "Migrate legacy patient data to new cloud platform.",
-    teamMemberIds: [4, 19],
-  },
-  {
-    id: 9,
-    name: "Support & Maintenance",
-    code: "PRJ-009",
-    clientId: 1,
-    clientName: "Acme Corporation",
-    status: "Active",
-    startDate: "2025-07-01",
-    teamLeadId: null,
-    managerId: null,
-    billingType: "hourly",
-    defaultBillingRate: "50",
-    description:
-      "Ongoing maintenance and minor enhancements for existing systems.",
-    teamMemberIds: [2, 19],
-  },
-  {
-    id: 10,
-    name: "Internal Design System",
-    code: "PRJ-010",
-    clientId: 9,
-    clientName: "Inhouse Product",
-    status: "On Hold",
-    startDate: "2025-03-20",
-    teamLeadId: null,
-    managerId: null,
-    billingType: "hourly",
-    defaultBillingRate: "65",
-    description:
-      "Shared design system and component library for all apps.",
-    teamMemberIds: [3, 4],
-  },
-  {
-    id: 11,
-    name: "AI Chat Support Pilot",
-    code: "PRJ-011",
-    clientId: 10,
-    clientName: "HelpDesk Plus",
-    status: "Active",
-    startDate: "2025-08-01",
-    teamLeadId: 4,
-    managerId: 1,
-    billingType: "hourly",
-    defaultBillingRate: "95",
-    estimatedCost: "22000",
-    description:
-      "Integrate AI-powered chat and ticket triage into existing support workflows.",
-    teamMemberIds: [2, 4, 7, 9, 12],
-  },
-  {
-    id: 12,
-    name: "Learning Portal Revamp",
-    code: "PRJ-012",
-    clientId: 4,
-    clientName: "BrightStart Education",
-    status: "Active",
-    startDate: "2025-08-10",
-    teamLeadId: 5,
-    managerId: 2,
-    billingType: "fixed",
-    fixedCost: "30000",
-    estimatedCost: "28000",
-    description:
-      "New course catalog, quizzes, and progress tracking for students and teachers.",
-    teamMemberIds: [3, 5, 8, 11, 13],
-  },
-  {
-    id: 13,
-    name: "Sales CRM Integration",
-    code: "PRJ-013",
-    clientId: 2,
-    clientName: "Global Solutions Pvt Ltd",
-    status: "On Hold",
-    startDate: "2025-09-01",
-    teamLeadId: 6,
-    managerId: 1,
-    billingType: "hourly",
-    defaultBillingRate: "80",
-    estimatedCost: "18000",
-    description:
-      "Sync deals, contacts, and invoices between CRM and internal billing tools.",
-    teamMemberIds: [4, 6, 10, 14],
-  },
-  {
-    id: 14,
-    name: "Marketing Automation Setup",
-    code: "PRJ-014",
-    clientId: 7,
-    clientName: "Urban Style Retail",
-    status: "Active",
-    startDate: "2025-09-15",
-    teamLeadId: 7,
-    managerId: 3,
-    billingType: "fixed",
-    fixedCost: "26000",
-    estimatedCost: "25000",
-    description:
-      "Email journeys, abandoned-cart flows, and SMS campaigns for seasonal sales.",
-    teamMemberIds: [2, 7, 9, 15, 16],
-  },
-  {
-    id: 15,
-    name: "Data Warehouse Build",
-    code: "PRJ-015",
-    clientId: 3,
-    clientName: "Nordic Tech AB",
-    status: "Active",
-    startDate: "2025-10-01",
-    teamLeadId: 8,
-    managerId: 2,
-    billingType: "hourly",
-    defaultBillingRate: "110",
-    estimatedCost: "45000",
-    description:
-      "Central data warehouse with nightly pipelines and BI dashboards.",
-    teamMemberIds: [3, 8, 10, 12, 17, 18],
-  },
-  {
-    id: 16,
-    name: "Internal Time Tracking",
-    code: "PRJ-016",
-    clientId: 9,
-    clientName: "Inhouse Product",
-    status: "Active",
-    startDate: "2025-10-20",
-    teamLeadId: 9,
-    managerId: 1,
-    billingType: "hourly",
-    defaultBillingRate: "70",
-    estimatedCost: "20000",
-    description:
-      "Build internal timesheet, approvals, and utilization reporting (v1 of Timey).",
-    teamMemberIds: [2, 5, 9, 11, 19, 20],
-  },
-  {
-    id: 17,
-    name: "Compliance Reporting Tool",
-    code: "PRJ-017",
-    clientId: 5,
-    clientName: "FinEdge Capital",
-    status: "On Hold",
-    startDate: "2025-11-05",
-    teamLeadId: 10,
-    managerId: 3,
-    billingType: "fixed",
-    fixedCost: "40000",
-    estimatedCost: "38000",
-    description:
-      "Automated regulatory reports with audit trails and scheduled exports.",
-    teamMemberIds: [4, 6, 10, 13, 18, 21, 20],
-  },
-  {
-    id: 18,
-    name: "Telemedicine Portal",
-    code: "PRJ-018",
-    clientId: 8,
-    clientName: "HealthSync Clinics",
-    status: "Active",
-    startDate: "2025-11-20",
-    teamLeadId: 11,
-    managerId: 2,
-    billingType: "hourly",
-    defaultBillingRate: "105",
-    estimatedCost: "50000",
-    description:
-      "Video consultations, e-prescriptions, and patient follow-up workflows.",
-    teamMemberIds: [3, 7, 11, 14, 16, 19, 20],
-  },
-  {
-    id: 19,
-    name: "Design System v2",
-    code: "PRJ-019",
-    clientId: 9,
-    clientName: "Inhouse Product",
-    status: "Completed",
-    startDate: "2025-07-10",
-    endDate: "2025-10-30",
-    teamLeadId: 12,
-    managerId: 1,
-    billingType: "hourly",
-    defaultBillingRate: "85",
-    estimatedCost: "32000",
-    description:
-      "Second iteration of the shared React/Next.js component library.",
-    teamMemberIds: [5, 8, 12, 15, 17, 20],
-  },
-  {
-    id: 20,
-    name: "Performance Optimization Sprint",
-    code: "PRJ-020",
-    clientId: 1,
-    clientName: "Acme Corporation",
-    status: "Completed",
-    startDate: "2025-08-05",
-    endDate: "2025-09-15",
-    teamLeadId: 13,
-    managerId: 3,
-    billingType: "hourly",
-    defaultBillingRate: "95",
-    estimatedCost: "15000",
-    description:
-      "Reduce TTFB, LCP, and error rates across customer-facing apps.",
-    teamMemberIds: [2, 6, 13, 16, 18, 21],
-  },
-];
+  return projects.map(p => ({
+    ...p,
+    status: p.status as ProjectStatus,
+    billingType: p.billingType as "fixed" | "hourly" | undefined,
+    teamMemberIds: relations.filter(r => r.B === p.id).map(r => r.A),
+    defaultBillingRate: p.defaultBillingRate ?? undefined,
+    fixedCost: p.fixedCost ?? undefined,
+    startDate: p.startDate ?? undefined,
+    endDate: p.endDate ?? undefined,
+    invoiceFileName: p.invoiceFileName ?? undefined,
+    description: p.description ?? undefined,
+    duration: p.duration ?? undefined,
+    estimatedCost: p.estimatedCost ?? undefined,
+  }));
+}
+
+export async function createProject(data: Omit<Project, "id">): Promise<Project> {
+  const { teamMemberIds, ...rest } = data;
+
+  const result = await prisma.$queryRaw<any[]>`
+    INSERT INTO "Project" ("name", "code", "clientId", "clientName", "teamLeadId", "managerId", "defaultBillingRate", "billingType", "fixedCost", "startDate", "endDate", "invoiceFileName", "description", "duration", "estimatedCost", "status")
+    VALUES (${rest.name}, ${rest.code}, ${rest.clientId}, ${rest.clientName}, ${rest.teamLeadId}, ${rest.managerId}, ${rest.defaultBillingRate || null}, ${rest.billingType || null}, ${rest.fixedCost || null}, ${rest.startDate || null}, ${rest.endDate || null}, ${rest.invoiceFileName || null}, ${rest.description || null}, ${rest.duration || null}, ${rest.estimatedCost || null}, ${rest.status})
+    RETURNING *
+  `;
+  const project = result[0];
+
+  if (teamMemberIds && teamMemberIds.length > 0) {
+    for (const empId of teamMemberIds) {
+      await prisma.$executeRaw`
+        INSERT INTO "_TeamMembers" ("A", "B") VALUES (${empId}, ${project.id})
+      `;
+    }
+  }
+
+  return {
+    ...project,
+    status: project.status as ProjectStatus,
+    billingType: project.billingType as "fixed" | "hourly" | undefined,
+    teamMemberIds: teamMemberIds || [],
+    defaultBillingRate: project.defaultBillingRate ?? undefined,
+    fixedCost: project.fixedCost ?? undefined,
+    startDate: project.startDate ?? undefined,
+    endDate: project.endDate ?? undefined,
+    invoiceFileName: project.invoiceFileName ?? undefined,
+    description: project.description ?? undefined,
+    duration: project.duration ?? undefined,
+    estimatedCost: project.estimatedCost ?? undefined,
+  };
+}
+
+export async function updateProject(id: number, data: Partial<Project>): Promise<Project> {
+  const { teamMemberIds, ...rest } = data;
+
+  const result = await prisma.$queryRaw<any[]>`
+    UPDATE "Project"
+    SET 
+      "name" = COALESCE(${rest.name || null}, "name"),
+      "code" = COALESCE(${rest.code || null}, "code"),
+      "clientId" = COALESCE(${rest.clientId || null}, "clientId"),
+      "clientName" = COALESCE(${rest.clientName || null}, "clientName"),
+      "teamLeadId" = COALESCE(${rest.teamLeadId || null}, "teamLeadId"),
+      "managerId" = COALESCE(${rest.managerId || null}, "managerId"),
+      "defaultBillingRate" = COALESCE(${rest.defaultBillingRate || null}, "defaultBillingRate"),
+      "billingType" = COALESCE(${rest.billingType || null}, "billingType"),
+      "fixedCost" = COALESCE(${rest.fixedCost || null}, "fixedCost"),
+      "startDate" = COALESCE(${rest.startDate || null}, "startDate"),
+      "endDate" = COALESCE(${rest.endDate || null}, "endDate"),
+      "invoiceFileName" = COALESCE(${rest.invoiceFileName || null}, "invoiceFileName"),
+      "description" = COALESCE(${rest.description || null}, "description"),
+      "duration" = COALESCE(${rest.duration || null}, "duration"),
+      "estimatedCost" = COALESCE(${rest.estimatedCost || null}, "estimatedCost"),
+      "status" = COALESCE(${rest.status || null}, "status")
+    WHERE "id" = ${id}
+    RETURNING *
+  `;
+  const project = result[0];
+
+  if (teamMemberIds) {
+    await prisma.$executeRaw`DELETE FROM "_TeamMembers" WHERE "B" = ${id}`;
+    for (const empId of teamMemberIds) {
+      await prisma.$executeRaw`
+        INSERT INTO "_TeamMembers" ("A", "B") VALUES (${empId}, ${id})
+      `;
+    }
+  }
+
+  const currentRelations = await prisma.$queryRaw<any[]>`SELECT "A" FROM "_TeamMembers" WHERE "B" = ${id}`;
+
+  return {
+    ...project,
+    status: project.status as ProjectStatus,
+    billingType: project.billingType as "fixed" | "hourly" | undefined,
+    teamMemberIds: currentRelations.map(r => r.A),
+    defaultBillingRate: project.defaultBillingRate ?? undefined,
+    fixedCost: project.fixedCost ?? undefined,
+    startDate: project.startDate ?? undefined,
+    endDate: project.endDate ?? undefined,
+    invoiceFileName: project.invoiceFileName ?? undefined,
+    description: project.description ?? undefined,
+    duration: project.duration ?? undefined,
+    estimatedCost: project.estimatedCost ?? undefined,
+  };
+}
+
+export async function deleteProject(id: number): Promise<void> {
+  // Manual cleanup of many-to-many relationship
+  await prisma.$executeRaw`DELETE FROM "_TeamMembers" WHERE "B" = ${id}`;
+  // Delete the project
+  await prisma.$executeRaw`DELETE FROM "Project" WHERE "id" = ${id}`;
+}
+
+// initialProjects export removed, use fetchProjectsAction instead

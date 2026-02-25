@@ -3,8 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Select, { type MultiValue } from "react-select";
 import type { Task, TaskStatus, TaskBillingType } from "@/lib/tasks";
-import { initialProjects } from "@/lib/projects";
-import { demoUsers } from "@/lib/users";
+import { Project, fetchProjectsAction, fetchUsersAction, User } from "@/app/actions";
 import {
   FileText,
   Clock,
@@ -24,15 +23,7 @@ type Props = {
   task?: Task | null;
 };
 
-const projectOptions = initialProjects;
-const employeeOptions = demoUsers.filter((u) => u.role === "employee");
-
-type EmployeeOption = { value: number; label: string };
-
-const employeeSelectOptions: EmployeeOption[] = employeeOptions.map((e) => ({
-  value: e.id,
-  label: e.name,
-}));
+// type EmployeeOption = { value: number; label: string }; // moved inside TaskModal
 
 type TabConfig = {
   key: TabKey;
@@ -64,6 +55,10 @@ export default function TaskModal({
 }: Props) {
   const isEdit = mode === "edit";
 
+  const [projectOptions, setProjectOptions] = useState<Project[]>([]);
+  const [employeeOptions, setEmployeeOptions] = useState<User[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+
   const [activeTab, setActiveTab] = useState<TabKey>("details");
 
   const [projectId, setProjectId] = useState<number | null>(null);
@@ -78,6 +73,13 @@ export default function TaskModal({
 
   useEffect(() => {
     if (!open) return;
+
+    setLoadingOptions(true);
+    Promise.all([fetchProjectsAction(), fetchUsersAction()]).then(([p, u]) => {
+      setProjectOptions(p);
+      setEmployeeOptions(u.filter((user) => user.role === "employee" || user.role === "teamLead"));
+      setLoadingOptions(false);
+    });
 
     if (isEdit && task) {
       setProjectId(task.projectId);
@@ -147,6 +149,28 @@ export default function TaskModal({
     setError("");
     onClose();
   };
+
+  const goNext = () => {
+    if (activeTab === "details") {
+      if (!projectId || !taskName) {
+        setError("Please fill all required Details fields (*) before continuing.");
+        return;
+      }
+      setError("");
+      setActiveTab("time");
+    } else if (activeTab === "time") {
+      setError("");
+      setActiveTab("people");
+    }
+  };
+
+  const goBack = () => {
+    if (activeTab === "time") setActiveTab("details");
+    else if (activeTab === "people") setActiveTab("time");
+  };
+
+  const isFirstStep = activeTab === "details";
+  const isLastStep = activeTab === "people";
 
   const getEmployeeName = (id: number) =>
     employeeOptions.find((e) => e.id === id)?.name ?? "Unknown";
@@ -223,12 +247,18 @@ export default function TaskModal({
       backgroundColor: state.isSelected
         ? "rgba(16,185,129,0.12)"
         : state.isFocused
-        ? "rgba(148,163,184,0.15)"
-        : "transparent",
+          ? "rgba(148,163,184,0.15)"
+          : "transparent",
       color: "hsl(var(--foreground))",
       cursor: "pointer",
     }),
   };
+
+  type EmployeeOption = { value: number; label: string };
+  const employeeSelectOptions: EmployeeOption[] = employeeOptions.map((e) => ({
+    value: e.id,
+    label: e.name,
+  }));
 
   const selectedEmployeeOptions: EmployeeOption[] =
     employeeSelectOptions.filter((opt) => assigneeIds.includes(opt.value));
@@ -259,11 +289,10 @@ export default function TaskModal({
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative flex items-center gap-2 px-3 py-3 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "text-emerald-500"
-                    : "text-muted hover:text-foreground"
-                }`}
+                className={`relative flex items-center gap-2 px-3 py-3 text-sm font-medium transition-colors ${isActive
+                  ? "text-emerald-500"
+                  : "text-muted hover:text-foreground"
+                  }`}
               >
                 <Icon className="h-4 w-4 flex-shrink-0" />
                 <span>{tab.label}</span>
@@ -462,7 +491,7 @@ export default function TaskModal({
         </form>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-3 bg-card">
+        <div className="flex items-center justify-between border-t border-border px-6 py-3 bg-card">
           <button
             type="button"
             onClick={resetAndClose}
@@ -470,18 +499,44 @@ export default function TaskModal({
           >
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              const form =
-                (e.currentTarget.parentElement
-                  ?.previousElementSibling as HTMLFormElement) || null;
-              form?.requestSubmit();
-            }}
-            className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
-          >
-            Save
-          </button>
+
+          <div className="flex items-center gap-3">
+            {!isFirstStep && (
+              <button
+                type="button"
+                onClick={goBack}
+                className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted"
+              >
+                Back
+              </button>
+            )}
+
+            {!isLastStep && (
+              <button
+                type="button"
+                onClick={goNext}
+                className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+              >
+                Next
+              </button>
+            )}
+
+            {isLastStep && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  const form =
+                    (e.currentTarget.parentElement
+                      ?.parentElement?.previousElementSibling as HTMLFormElement) ||
+                    null;
+                  form?.requestSubmit();
+                }}
+                className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-500/40 hover:bg-emerald-400"
+              >
+                Save
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -1,20 +1,37 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Task,
   TaskStatus,
   TaskBillingType,
-  initialTasks,
 } from "@/lib/tasks";
-import { initialProjects } from "@/lib/projects";
-import { demoUsers } from "@/lib/users";
+import { Project } from "@/lib/projects";
+import { User } from "@/lib/users";
+import {
+  fetchTasksAction,
+  fetchProjectsAction,
+  fetchUsersAction,
+  createTaskAction,
+  updateTaskAction,
+  deleteTaskAction,
+} from "@/app/actions";
 import TaskModal from "@/components/TaskModal";
-import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  ChevronUp,
+  ChevronDown,
+  MoreVertical,
+  Eye,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 
-const hasProjects = initialProjects.length > 0;
-const employeesById = Object.fromEntries(demoUsers.map((u) => [u.id, u]));
+// Helper to get employees by ID from state
+const getEmployeesById = (users: User[]) => Object.fromEntries(users.map((u) => [u.id, u]));
 
 function formatHumanDate(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -24,6 +41,24 @@ function formatHumanDate(iso: string) {
     day: "2-digit",
     year: "numeric",
   });
+}
+
+function toLocalISODate(d: Date) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getWeekRange(anchor: Date = new Date()) {
+  const day = anchor.getDay();
+  const diffToMonday = (day + 6) % 7;
+  const monday = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - diffToMonday);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  return {
+    start: toLocalISODate(monday),
+    end: toLocalISODate(sunday),
+  };
 }
 
 function StatusBadge({ status }: { status: TaskStatus }) {
@@ -81,31 +116,41 @@ type StatusFilter = "All" | TaskStatus;
 
 export default function AdminTasks() {
   const router = useRouter();
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetchTasksAction(),
+      fetchProjectsAction(),
+      fetchUsersAction(),
+    ]).then(([t, p, u]) => {
+      setTasks(t);
+      setProjects(p);
+      setUsers(u);
+      setIsLoading(false);
+    });
+  }, []);
+
+  const hasProjects = projects.length > 0;
+  const employeesById = useMemo(() => getEmployeesById(users), [users]);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
+  const [viewMode, setViewMode] = useState<"logs" | "summary">("logs");
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "date", direction: "desc" });
 
   // --- Weekly date range state (header) ---
   // Initialize to current week [Mon..Sun]
-  const today = new Date();
-  const todayDay = today.getDay(); // 0 Sun - 6 Sat
-  const mondayDiff = (todayDay + 6) % 7;
-  const initialStart = new Date(today);
-  initialStart.setDate(today.getDate() - mondayDiff);
-  const initialEnd = new Date(initialStart);
-  initialEnd.setDate(initialStart.getDate() + 6);
+  const { start: initialStart, end: initialEnd } = useMemo(() => getWeekRange(), []);
 
-  const [startISO, setStartISO] = useState<string>(
-    initialStart.toISOString().slice(0, 10)
-  );
-  const [endISO, setEndISO] = useState<string>(
-    initialEnd.toISOString().slice(0, 10)
-  );
+  const [startISO, setStartISO] = useState<string>(initialStart);
+  const [endISO, setEndISO] = useState<string>(initialEnd);
 
   const formatAssignees = (assigneeIds: number[]) => {
     if (assigneeIds.length === 0) return "-";
@@ -127,32 +172,25 @@ export default function AdminTasks() {
     });
 
   const goPrevWeek = () => {
-    const start = new Date(startISO);
-    const end = new Date(endISO);
-    start.setDate(start.getDate() - 7);
-    end.setDate(end.getDate() - 7);
-    setStartISO(start.toISOString().slice(0, 10));
-    setEndISO(end.toISOString().slice(0, 10));
+    const [y, m, d] = startISO.split("-").map(Number);
+    const prev = new Date(y, m - 1, d - 7);
+    const { start, end } = getWeekRange(prev);
+    setStartISO(start);
+    setEndISO(end);
   };
 
   const goNextWeek = () => {
-    const start = new Date(startISO);
-    const end = new Date(endISO);
-    start.setDate(start.getDate() + 7);
-    end.setDate(end.getDate() + 7);
-    setStartISO(start.toISOString().slice(0, 10));
-    setEndISO(end.toISOString().slice(0, 10));
+    const [y, m, d] = startISO.split("-").map(Number);
+    const next = new Date(y, m - 1, d + 7);
+    const { start, end } = getWeekRange(next);
+    setStartISO(start);
+    setEndISO(end);
   };
 
   const setWeekFromAnchor = (anchor: Date) => {
-    const day = anchor.getDay();
-    const mondayDiff = (day + 6) % 7;
-    const start = new Date(anchor);
-    start.setDate(anchor.getDate() - mondayDiff);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    setStartISO(start.toISOString().slice(0, 10));
-    setEndISO(end.toISOString().slice(0, 10));
+    const { start, end } = getWeekRange(anchor);
+    setStartISO(start);
+    setEndISO(end);
   };
 
   const toggleMenu = (id: number) => {
@@ -173,24 +211,80 @@ export default function AdminTasks() {
     setOpenMenuId(null);
   };
 
-  const handleRemove = (id: number) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-    setOpenMenuId(null);
+  const handleRemove = async (id: number) => {
+    try {
+      await deleteTaskAction(id);
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+      setOpenMenuId(null);
+    } catch (err) {
+      console.error("Failed to delete task:", err);
+      alert("Failed to delete task. Please try again.");
+    }
+  };
+
+  const handleRemoveGroup = async (projectId: number, name: string) => {
+    try {
+      const tasksToRemove = filteredTasks.filter(
+        (t) => t.projectId === projectId && t.name === name
+      );
+      await Promise.all(tasksToRemove.map((t) => deleteTaskAction(t.id)));
+      setTasks((prev) => prev.filter((t) => !tasksToRemove.some((rem) => rem.id === t.id)));
+      setOpenMenuId(null);
+    } catch (err) {
+      console.error("Failed to remove task group:", err);
+      alert("Failed to remove task group. Please try again.");
+    }
   };
 
   const handleView = (task: Task) => {
-    const project = initialProjects.find((p) => p.id === task.projectId);
+    const project = projects.find((p) => p.id === task.projectId);
     if (project) {
       router.push(`/admin/projects/${project.id}`);
     }
     setOpenMenuId(null);
   };
 
-  const handleSaveTask = (task: Task) => {
-    if (modalMode === "add") {
-      setTasks((prev) => [...prev, task]);
-    } else {
-      setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
+  const handleSaveTask = async (task: Task) => {
+    try {
+      if (modalMode === "add") {
+        const { id, ...data } = task;
+        const created = await createTaskAction(data);
+        setTasks((prev) => [...prev, created]);
+      } else {
+        const { id, ...data } = task;
+        if (viewMode === "summary" && selectedTask) {
+          // Update the whole group for this week
+          const groupToUpdate = tasks.filter(
+            (t) => t.projectId === selectedTask.projectId && t.name === selectedTask.name
+          );
+
+          const updatedResults = await Promise.all(
+            groupToUpdate.map((t) =>
+              updateTaskAction(t.id, {
+                ...data,
+                workedHours: t.workedHours, // Preserve original hours for each log
+                date: t.date,               // Preserve original date
+              })
+            )
+          );
+
+          setTasks((prev) => {
+            let newTasks = [...prev];
+            updatedResults.forEach((updated) => {
+              newTasks = newTasks.map((t) => (t.id === updated.id ? updated : t));
+            });
+            return newTasks;
+          });
+        } else {
+          // Single update (though UI currently restricts logs to read-only)
+          const updated = await updateTaskAction(id, data);
+          setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
+        }
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error("Failed to save task:", err);
+      alert("Failed to save task. Please try again.");
     }
   };
 
@@ -200,7 +294,7 @@ export default function AdminTasks() {
   const filteredTasks = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
-    return tasks.filter((task) => {
+    let items = tasks.filter((task) => {
       const inRange =
         (!startISO || task.date >= startISO) &&
         (!endISO || task.date <= endISO);
@@ -210,14 +304,80 @@ export default function AdminTasks() {
         task.name.toLowerCase().includes(term) ||
         task.projectName.toLowerCase().includes(term) ||
         formatAssignees(task.assigneeIds).toLowerCase().includes(term) ||
-        task.billingType.toLowerCase().includes(term);
+        task.billingType.toLowerCase().includes(term) ||
+        task.status.toLowerCase().includes(term);
 
-      const matchesStatus =
-        statusFilter === "All" ? true : task.status === statusFilter;
-
-      return inRange && matchesSearch && matchesStatus;
+      return inRange && matchesSearch;
     });
-  }, [tasks, searchTerm, statusFilter, startISO, endISO]);
+
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        const aVal = (a as any)[sortConfig.key];
+        const bVal = (b as any)[sortConfig.key];
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return items;
+  }, [tasks, searchTerm, startISO, endISO, sortConfig]);
+
+  const summarizedTasks = useMemo(() => {
+    const groups: Record<string, { task: Task; totalHours: number }> = {};
+    filteredTasks.forEach((t) => {
+      const key = `${t.projectId}-${t.name}`;
+      if (!groups[key]) {
+        groups[key] = { task: t, totalHours: 0 };
+      }
+      groups[key].totalHours += t.workedHours;
+    });
+
+    const items = Object.values(groups);
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        let aVal: any, bVal: any;
+        if (sortConfig.key === "workedHours") {
+          aVal = a.totalHours;
+          bVal = b.totalHours;
+        } else if (sortConfig.key === "name") {
+          aVal = a.task.name;
+          bVal = b.task.name;
+        } else if (sortConfig.key === "projectName") {
+          aVal = a.task.projectName;
+          bVal = b.task.projectName;
+        } else if (sortConfig.key === "status") {
+          aVal = a.task.status;
+          bVal = b.task.status;
+        } else if (sortConfig.key === "billingType") {
+          aVal = a.task.billingType;
+          bVal = b.task.billingType;
+        } else {
+          return 0;
+        }
+
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return items;
+  }, [filteredTasks, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortConfig.key !== column) return null;
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="h-3 w-3" />
+    ) : (
+      <ChevronDown className="h-3 w-3" />
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -282,11 +442,10 @@ export default function AdminTasks() {
           <button
             onClick={handleAddTaskClick}
             disabled={!hasProjects}
-            className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold shadow-sm ${
-              hasProjects
-                ? "bg-emerald-500 text-slate-950 shadow-emerald-500/40 hover:bg-emerald-400"
-                : "bg-muted text-muted-foreground cursor-not-allowed"
-            }`}
+            className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold shadow-sm ${hasProjects
+              ? "bg-emerald-500 text-slate-950 shadow-emerald-500/40 hover:bg-emerald-400"
+              : "bg-muted text-muted-foreground cursor-not-allowed"
+              }`}
           >
             {hasProjects ? "+ Add Task" : "Add a project first"}
           </button>
@@ -295,40 +454,49 @@ export default function AdminTasks() {
 
       {/* Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden">
-        {/* Toolbar (count + search + status filter) */}
+        {/* Toolbar (count + search + toggle) */}
         <div className="flex flex-col gap-3 border-b border-border p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-xs text-muted">
             <span className="font-medium text-foreground">
-              {filteredTasks.length}
+              {viewMode === "logs" ? filteredTasks.filter(t => t.workedHours > 0).length : summarizedTasks.length}
             </span>
             <span>tasks</span>
-            {(searchTerm || statusFilter !== "All") && (
+            {(searchTerm) && (
               <span className="text-[11px] text-muted">
                 (filtered from {tasks.length})
               </span>
             )}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <input
               type="text"
-              placeholder="Search tasks, projects, assignees, billing"
+              placeholder="Search tasks, projects, status..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-56 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+              className="w-full sm:w-64 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
-            <select
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as StatusFilter)
-              }
-              className="hidden sm:block rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-            >
-              <option value="All">All</option>
-              <option value="Not Started">Not Started</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Completed">Completed</option>
-            </select>
+
+            <div className="inline-flex rounded-lg border border-border bg-background p-1 text-xs">
+              <button
+                onClick={() => setViewMode("logs")}
+                className={`px-4 py-1.5 rounded-md font-medium transition-colors ${viewMode === "logs"
+                  ? "bg-emerald-500 text-slate-950 shadow-sm"
+                  : "text-muted hover:text-foreground"
+                  }`}
+              >
+                Task Logs
+              </button>
+              <button
+                onClick={() => setViewMode("summary")}
+                className={`px-4 py-1.5 rounded-md font-medium transition-colors ${viewMode === "summary"
+                  ? "bg-emerald-500 text-slate-950 shadow-sm"
+                  : "text-muted hover:text-foreground"
+                  }`}
+              >
+                Task Summary
+              </button>
+            </div>
           </div>
         </div>
 
@@ -337,33 +505,122 @@ export default function AdminTasks() {
           <table className="min-w-full text-left text-xs sm:text-sm">
             <thead className="bg-background/80 text-muted border-b border-border">
               <tr>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Task</th>
-                <th className="px-4 py-3 font-medium">Project</th>
-                <th className="px-4 py-3 font-medium">Worked Hours</th>
-                <th className="px-4 py-3 font-medium">Assigned To</th>
-                <th className="px-4 py-3 font-medium">Billing</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium text-right">
-                  Actions
+                {viewMode === "logs" && (
+                  <th
+                    className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => handleSort("date")}
+                  >
+                    <div className="flex items-center gap-1">
+                      Date <SortIcon column="date" />
+                    </div>
+                  </th>
+                )}
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("name")}
+                >
+                  <div className="flex items-center gap-1">
+                    Task <SortIcon column="name" />
+                  </div>
                 </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("projectName")}
+                >
+                  <div className="flex items-center gap-1">
+                    Project <SortIcon column="projectName" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("workedHours")}
+                >
+                  <div className="flex items-center gap-1">
+                    {viewMode === "logs" ? "Worked Hours" : "Total Hours"}
+                    <SortIcon column="workedHours" />
+                  </div>
+                </th>
+                <th className="px-4 py-3 font-medium">Assigned To</th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("billingType")}
+                >
+                  <div className="flex items-center gap-1">
+                    Billing <SortIcon column="billingType" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort("status")}
+                >
+                  <div className="flex items-center gap-1">
+                    Status <SortIcon column="status" />
+                  </div>
+                </th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
-              {filteredTasks.length > 0 ? (
-                filteredTasks.map((task) => (
-                  <tr key={task.id} className="hover:bg-background/60">
-                    <td className="px-4 py-3 text-muted">
-                      {formatHumanDate(task.date)}
+              {isLoading ? (
+                <tr>
+                  <td
+                    colSpan={8}
+                    className="px-4 py-8 text-center text-sm text-muted"
+                  >
+                    Loading tasks...
+                  </td>
+                </tr>
+              ) : viewMode === "logs" ? (
+                filteredTasks.filter(t => t.workedHours > 0).length > 0 ? (
+                  filteredTasks.filter(t => t.workedHours > 0).map((task) => (
+                    <tr key={task.id} className="hover:bg-background/60">
+                      <td className="px-4 py-3 text-muted">
+                        {formatHumanDate(task.date)}
+                      </td>
+                      <td className="px-4 py-3 text-foreground">
+                        {task.name}
+                      </td>
+                      <td className="px-4 py-3 text-muted">
+                        {task.projectName}
+                      </td>
+                      <td className="px-4 py-3 text-foreground">
+                        {task.workedHours.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-muted">
+                        {formatAssignees(task.assigneeIds)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <BillingBadge billingType={task.billingType} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={task.status} />
+                      </td>
+                      <td className="px-4 py-3 text-right text-muted italic">
+                        read-only
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="px-4 py-8 text-center text-sm text-muted"
+                    >
+                      No matching tasks.
                     </td>
-                    <td className="px-4 py-3 text-foreground">
+                  </tr>
+                )
+              ) : summarizedTasks.length > 0 ? (
+                summarizedTasks.map(({ task, totalHours }) => (
+                  <tr key={`${task.projectId}-${task.name}`} className="hover:bg-background/60">
+                    <td className="px-4 py-3 text-foreground font-medium">
                       {task.name}
                     </td>
                     <td className="px-4 py-3 text-muted">
                       {task.projectName}
                     </td>
-                    <td className="px-4 py-3 text-foreground">
-                      {task.workedHours.toFixed(2)}
+                    <td className="px-4 py-3 text-foreground font-semibold text-emerald-500">
+                      {totalHours.toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-muted">
                       {formatAssignees(task.assigneeIds)}
@@ -379,31 +636,38 @@ export default function AdminTasks() {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
-                        onClick={() => toggleMenu(task.id)}
+                        onClick={() => setOpenMenuId(openMenuId === (`${task.projectId}-${task.name}` as any) ? null : (`${task.projectId}-${task.name}` as any))}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground hover:bg-card"
                       >
-                        ⋮
+                        <MoreVertical className="h-4 w-4" />
                       </button>
 
-                      {openMenuId === task.id && (
-                        <div className="absolute right-4 top-11 z-10 w-40 rounded-lg border border-border bg-card text-xs shadow-lg">
+                      {openMenuId === (`${task.projectId}-${task.name}` as any) && (
+                        <div className="absolute right-4 top-11 z-10 w-44 rounded-lg border border-border bg-card text-xs shadow-lg text-left overflow-hidden">
                           <button
                             onClick={() => handleView(task)}
-                            className="block w-full px-3 py-2 text-left hover:bg-background/70"
+                            className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-background/70"
                           >
-                            View project
+                            <Eye className="h-4 w-4 text-muted" />
+                            <span>View project</span>
                           </button>
                           <button
                             onClick={() => handleEdit(task)}
-                            className="block w-full px-3 py-2 text-left hover:bg-background/70"
+                            className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-background/70"
                           >
-                            Edit
+                            <Pencil className="h-4 w-4 text-muted" />
+                            <span>Edit task</span>
                           </button>
                           <button
-                            onClick={() => handleRemove(task.id)}
-                            className="block w-full px-3 py-2 text-left text-red-500 hover:bg-red-500/10"
+                            onClick={() => {
+                              if (confirm("Are you sure you want to remove this task and all its entries for this week?")) {
+                                handleRemoveGroup(task.projectId, task.name);
+                              }
+                            }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-left text-red-500 hover:bg-red-500/10"
                           >
-                            Remove
+                            <Trash2 className="h-4 w-4" />
+                            <span>Remove task</span>
                           </button>
                         </div>
                       )}
@@ -416,7 +680,7 @@ export default function AdminTasks() {
                     colSpan={8}
                     className="px-4 py-8 text-center text-sm text-muted"
                   >
-                    No matching tasks.
+                    No matching tasks for summary.
                   </td>
                 </tr>
               )}

@@ -1,3 +1,5 @@
+import prisma from "./prisma";
+
 export type TaskStatus = "Not Started" | "In Progress" | "Completed";
 export type TaskBillingType = "billable" | "non-billable";
 
@@ -11,571 +13,95 @@ export type Task = {
   date: string; // YYYY-MM-DD
   status: TaskStatus;
   description?: string;
-  billingType: TaskBillingType; // NEW
+  billingType: TaskBillingType;
 };
 
-export const initialTasks: Task[] = [
-  // Project 1: Website Redesign
-  {
-    id: 1,
-    projectId: 1,
-    projectName: "Website Redesign",
-    name: "Create homepage layout",
-    workedHours: 2,
-    assigneeIds: [2],
-    date: "2025-12-15",
-    status: "Completed",
-    description: "Created initial homepage wireframe and sections structure.",
-    billingType: "billable",
-  },
-  {
-    id: 2,
-    projectId: 1,
-    projectName: "Website Redesign",
-    name: "Implement responsive styles",
-    workedHours: 3,
-    assigneeIds: [2, 3],
-    date: "2025-12-16",
-    status: "In Progress",
-    description: "Added responsive breakpoints for header and hero section.",
-    billingType: "billable",
-  },
-  {
-    id: 3,
-    projectId: 1,
-    projectName: "Website Redesign",
-    name: "Set up design system",
-    workedHours: 1.5,
-    assigneeIds: [3],
-    date: "2025-12-17",
-    status: "In Progress",
-    description: "Defined color tokens and typography scale in Figma.",
-    billingType: "non-billable",
-  },
-  {
-    id: 4,
-    projectId: 1,
-    projectName: "Website Redesign",
-    name: "Integrate CMS content",
-    workedHours: 2.75,
-    assigneeIds: [2, 4],
-    date: "2025-12-18",
-    status: "Not Started",
-    billingType: "billable",
-  },
+export async function getTasks(): Promise<Task[]> {
+  const tasks = await prisma.$queryRaw<any[]>`SELECT * FROM "Task"`;
+  const relations = await prisma.$queryRaw<any[]>`SELECT * FROM "_AssigneeTasks"`;
 
-  // Project 2: Mobile App
-  {
-    id: 5,
-    projectId: 2,
-    projectName: "Mobile App",
-    name: "Set up authentication flow",
-    workedHours: 4,
-    assigneeIds: [3],
-    date: "2025-12-15",
-    status: "Completed",
-    description: "Implemented login, logout and session handling.",
-    billingType: "billable",
-  },
-  {
-    id: 6,
-    projectId: 2,
-    projectName: "Mobile App",
-    name: "Build dashboard screen",
-    workedHours: 2.5,
-    assigneeIds: [3, 5],
-    date: "2025-12-16",
-    status: "In Progress",
-    description: "Created cards layout and basic navigation.",
-    billingType: "billable",
-  },
-  {
-    id: 7,
-    projectId: 2,
-    projectName: "Mobile App",
-    name: "API error handling",
-    workedHours: 5,
-    assigneeIds: [5],
-    date: "2025-12-17",
-    status: "Not Started",
-    billingType: "billable",
-  },
+  return tasks.map(t => ({
+    ...t,
+    status: t.status as TaskStatus,
+    billingType: t.billingType as TaskBillingType,
+    assigneeIds: relations.filter(r => r.B === t.id).map(r => r.A),
+    description: t.description ?? undefined,
+  }));
+}
 
-  // Project 3: Internal Tools
-  {
-    id: 8,
-    projectId: 3,
-    projectName: "Internal Tools",
-    name: "Employee list page",
-    workedHours: 2,
-    assigneeIds: [4],
-    date: "2025-12-15",
-    status: "Completed",
-    description: "Implemented table with pagination and basic filters.",
-    billingType: "billable",
-  },
-  {
-    id: 9,
-    projectId: 3,
-    projectName: "Internal Tools",
-    name: "Timesheet summary API",
-    workedHours: 3.25,
-    assigneeIds: [4, 6],
-    date: "2025-12-16",
-    status: "In Progress",
-    description: "Aggregated hours per employee and per project.",
-    billingType: "billable",
-  },
-  {
-    id: 10,
-    projectId: 3,
-    projectName: "Internal Tools",
-    name: "Permissions and roles",
-    workedHours: 1.5,
-    assigneeIds: [6],
-    date: "2025-12-18",
-    status: "Not Started",
-    billingType: "non-billable",
-  },
+export async function createTask(data: Omit<Task, "id">): Promise<Task> {
+  const { assigneeIds, ...rest } = data;
 
-  // Project 4: Marketing Site
-  {
-    id: 11,
-    projectId: 4,
-    projectName: "Marketing Site",
-    name: "Landing page hero section",
-    workedHours: 2.25,
-    assigneeIds: [2],
-    date: "2025-12-19",
-    status: "In Progress",
-    description: "Added headline, CTA button, and background illustration.",
-    billingType: "billable",
-  },
-  {
-    id: 12,
-    projectId: 4,
-    projectName: "Marketing Site",
-    name: "SEO meta tags and sitemap",
-    workedHours: 1.75,
-    assigneeIds: [5],
-    date: "2025-12-19",
-    status: "Not Started",
-    billingType: "billable",
-  },
+  const result = await prisma.$queryRaw<any[]>`
+    INSERT INTO "Task" (
+      "projectId", "projectName", "name", "workedHours", 
+      "date", "status", "description", "billingType"
+    ) VALUES (
+      ${rest.projectId}, ${rest.projectName}, ${rest.name}, ${rest.workedHours}, 
+      ${rest.date}, ${rest.status}, ${rest.description || null}, ${rest.billingType}
+    ) RETURNING *
+  `;
+  const task = result[0];
 
-  // Project 5: Client Portal
-  {
-    id: 13,
-    projectId: 5,
-    projectName: "Client Portal",
-    name: "Client dashboard widgets",
-    workedHours: 3.5,
-    assigneeIds: [3, 4],
-    date: "2025-12-20",
-    status: "In Progress",
-    description:
-      "Implemented cards for invoices, tasks, and support tickets.",
-    billingType: "billable",
-  },
-  {
-    id: 14,
-    projectId: 5,
-    projectName: "Client Portal",
-    name: "Notification settings page",
-    workedHours: 2,
-    assigneeIds: [6],
-    date: "2025-12-20",
-    status: "Not Started",
-    billingType: "non-billable",
-  },
+  if (assigneeIds && assigneeIds.length > 0) {
+    for (const empId of assigneeIds) {
+      await prisma.$executeRaw`
+        INSERT INTO "_AssigneeTasks" ("A", "B") VALUES (${empId}, ${task.id})
+      `;
+    }
+  }
 
-  // Extra tasks
-  {
-    id: 15,
-    projectId: 1,
-    projectName: "Website Redesign",
-    name: "Bug fixes from QA",
-    workedHours: 1.25,
-    assigneeIds: [2],
-    date: "2025-12-21",
-    status: "In Progress",
-    description: "Fixed spacing and alignment issues on mobile.",
-    billingType: "billable",
-  },
-  {
-    id: 16,
-    projectId: 2,
-    projectName: "Mobile App",
-    name: "Refactor state management",
-    workedHours: 2,
-    assigneeIds: [3],
-    date: "2025-12-21",
-    status: "Not Started",
-    billingType: "non-billable",
-  },
-  {
-  id: 17,
-  projectId: 6,
-  projectName: "HR Internal Tools",
-  name: "Leave request workflow",
-  workedHours: 3,
-  assigneeIds: [3],
-  date: "2025-12-22",
-  status: "In Progress",
-  description: "Configured approval chain for manager and HR.",
-  billingType: "non-billable",
-},
-{
-  id: 18,
-  projectId: 6,
-  projectName: "HR Internal Tools",
-  name: "Timesheet export CSV",
-  workedHours: 2.5,
-  assigneeIds: [4],
-  date: "2025-12-23",
-  status: "Not Started",
-  billingType: "non-billable",
-},
+  return {
+    ...task,
+    status: task.status as TaskStatus,
+    billingType: task.billingType as TaskBillingType,
+    assigneeIds: assigneeIds ?? [],
+    description: task.description ?? undefined,
+  };
+}
 
-// Project 7: E‑commerce Upgrade (PRJ-007)
-{
-  id: 19,
-  projectId: 7,
-  projectName: "E‑commerce Upgrade",
-  name: "Optimize checkout performance",
-  workedHours: 4,
-  assigneeIds: [2, 5],
-  date: "2025-12-22",
-  status: "In Progress",
-  description: "Reduced bundle size and enabled HTTP caching.",
-  billingType: "billable",
-},
-{
-  id: 20,
-  projectId: 7,
-  projectName: "E‑commerce Upgrade",
-  name: "Wishlist feature backend",
-  workedHours: 3.25,
-  assigneeIds: [5],
-  date: "2025-12-23",
-  status: "Not Started",
-  billingType: "billable",
-},
+export async function updateTask(id: number, data: Partial<Task>): Promise<Task> {
+  const { assigneeIds, ...rest } = data;
 
-// Project 8: Data Migration Project (PRJ-008)
-{
-  id: 21,
-  projectId: 8,
-  projectName: "Data Migration Project",
-  name: "Validate migrated records",
-  workedHours: 2.75,
-  assigneeIds: [4],
-  date: "2025-12-24",
-  status: "In Progress",
-  description: "Spot-checked patient records between legacy and new DB.",
-  billingType: "billable",
-},
-{
-  id: 22,
-  projectId: 8,
-  projectName: "Data Migration Project",
-  name: "Migration runbook documentation",
-  workedHours: 1.5,
-  assigneeIds: [4],
-  date: "2025-12-24",
-  status: "Completed",
-  billingType: "non-billable",
-},
+  const result = await prisma.$queryRaw<any[]>`
+    UPDATE "Task"
+    SET 
+      "projectId" = COALESCE(${rest.projectId || null}, "projectId"),
+      "projectName" = COALESCE(${rest.projectName || null}, "projectName"),
+      "name" = COALESCE(${rest.name || null}, "name"),
+      "workedHours" = COALESCE(${rest.workedHours ?? null}, "workedHours"),
+      "date" = COALESCE(${rest.date || null}, "date"),
+      "status" = COALESCE(${rest.status || null}, "status"),
+      "description" = COALESCE(${rest.description || null}, "description"),
+      "billingType" = COALESCE(${rest.billingType || null}, "billingType")
+    WHERE "id" = ${id}
+    RETURNING *
+  `;
+  const task = result[0];
 
-// Project 9: Support & Maintenance (PRJ-009)
-{
-  id: 23,
-  projectId: 9,
-  projectName: "Support & Maintenance",
-  name: "Weekly production monitoring",
-  workedHours: 1,
-  assigneeIds: [2],
-  date: "2025-12-25",
-  status: "Completed",
-  description: "Checked logs, error rates, and uptime dashboard.",
-  billingType: "billable",
-},
-{
-  id: 24,
-  projectId: 9,
-  projectName: "Support & Maintenance",
-  name: "Minor UI bug fixes",
-  workedHours: 2,
-  assigneeIds: [2],
-  date: "2025-12-26",
-  status: "In Progress",
-  billingType: "billable",
-},
+  if (assigneeIds) {
+    await prisma.$executeRaw`DELETE FROM "_AssigneeTasks" WHERE "B" = ${id}`;
+    for (const empId of assigneeIds) {
+      await prisma.$executeRaw`
+        INSERT INTO "_AssigneeTasks" ("A", "B") VALUES (${empId}, ${id})
+      `;
+    }
+  }
 
-// Project 10: Internal Design System (PRJ-010)
-{
-  id: 25,
-  projectId: 10,
-  projectName: "Internal Design System",
-  name: "Button component variants",
-  workedHours: 2.25,
-  assigneeIds: [3, 4],
-  date: "2025-12-26",
-  status: "In Progress",
-  description: "Added primary, secondary, and ghost variants with tokens.",
-  billingType: "non-billable",
-},
-{
-  id: 26,
-  projectId: 10,
-  projectName: "Internal Design System",
-  name: "Typography guidelines",
-  workedHours: 1.75,
-  assigneeIds: [4],
-  date: "2025-12-27",
-  status: "Not Started",
-  billingType: "non-billable",
-},
+  const currentRelations = await prisma.$queryRaw<any[]>`SELECT "A" FROM "_AssigneeTasks" WHERE "B" = ${id}`;
 
-// Project 11: AI Chat Support Pilot (PRJ-011)
-{
-  id: 27,
-  projectId: 11,
-  projectName: "AI Chat Support Pilot",
-  name: "Intent classification POC",
-  workedHours: 3.5,
-  assigneeIds: [4, 7],
-  date: "2025-12-27",
-  status: "In Progress",
-  description: "Evaluated model accuracy on historical ticket data.",
-  billingType: "billable",
-},
-{
-  id: 28,
-  projectId: 11,
-  projectName: "AI Chat Support Pilot",
-  name: "Chat widget integration",
-  workedHours: 2,
-  assigneeIds: [2],
-  date: "2025-12-28",
-  status: "Not Started",
-  billingType: "billable",
-},
+  return {
+    ...task,
+    status: task.status as TaskStatus,
+    billingType: task.billingType as TaskBillingType,
+    assigneeIds: currentRelations.map(r => r.A),
+    description: task.description ?? undefined,
+  };
+}
 
-// Project 12: Learning Portal Revamp (PRJ-012)
-{
-  id: 29,
-  projectId: 12,
-  projectName: "Learning Portal Revamp",
-  name: "Course listing filters",
-  workedHours: 3,
-  assigneeIds: [3, 8],
-  date: "2025-12-28",
-  status: "In Progress",
-  description: "Implemented filter by level, category, and duration.",
-  billingType: "billable",
-},
-{
-  id: 30,
-  projectId: 12,
-  projectName: "Learning Portal Revamp",
-  name: "Quiz engine improvements",
-  workedHours: 2.5,
-  assigneeIds: [5, 11],
-  date: "2025-12-29",
-  status: "Not Started",
-  billingType: "billable",
-},
+export async function deleteTask(id: number): Promise<void> {
+  await prisma.$executeRaw`DELETE FROM "_AssigneeTasks" WHERE "B" = ${id}`;
+  await prisma.$executeRaw`DELETE FROM "Task" WHERE "id" = ${id}`;
+}
 
-// Project 13: Sales CRM Integration (PRJ-013)
-{
-  id: 31,
-  projectId: 13,
-  projectName: "Sales CRM Integration",
-  name: "Contact sync job",
-  workedHours: 2,
-  assigneeIds: [4, 10],
-  date: "2025-12-29",
-  status: "In Progress",
-  billingType: "billable",
-},
-{
-  id: 32,
-  projectId: 13,
-  projectName: "Sales CRM Integration",
-  name: "Invoice webhook listener",
-  workedHours: 1.5,
-  assigneeIds: [6],
-  date: "2025-12-30",
-  status: "Not Started",
-  billingType: "billable",
-},
-
-// Project 14: Marketing Automation Setup (PRJ-014)
-{
-  id: 33,
-  projectId: 14,
-  projectName: "Marketing Automation Setup",
-  name: "Abandoned cart flow",
-  workedHours: 3.25,
-  assigneeIds: [2, 7],
-  date: "2025-12-30",
-  status: "In Progress",
-  billingType: "billable",
-},
-{
-  id: 34,
-  projectId: 14,
-  projectName: "Marketing Automation Setup",
-  name: "Email template design",
-  workedHours: 2,
-  assigneeIds: [9],
-  date: "2025-12-31",
-  status: "Not Started",
-  billingType: "non-billable",
-},
-
-// Project 15: Data Warehouse Build (PRJ-015)
-{
-  id: 35,
-  projectId: 15,
-  projectName: "Data Warehouse Build",
-  name: "ETL pipeline for orders",
-  workedHours: 4,
-  assigneeIds: [8, 12],
-  date: "2025-12-31",
-  status: "In Progress",
-  billingType: "billable",
-},
-{
-  id: 36,
-  projectId: 15,
-  projectName: "Data Warehouse Build",
-  name: "BI dashboard: revenue",
-  workedHours: 3,
-  assigneeIds: [17],
-  date: "2026-01-01",
-  status: "Not Started",
-  billingType: "billable",
-},
-
-// Project 16: Internal Time Tracking (PRJ-016)
-{
-  id: 37,
-  projectId: 16,
-  projectName: "Internal Time Tracking",
-  name: "Timesheet entry UI",
-  workedHours: 2.5,
-  assigneeIds: [2, 9],
-  date: "2026-01-01",
-  status: "In Progress",
-  billingType: "non-billable",
-},
-{
-  id: 38,
-  projectId: 16,
-  projectName: "Internal Time Tracking",
-  name: "Billable/non-billable toggle",
-  workedHours: 1.5,
-  assigneeIds: [11],
-  date: "2026-01-02",
-  status: "Not Started",
-  billingType: "non-billable",
-},
-
-// Project 17: Compliance Reporting Tool (PRJ-017)
-{
-  id: 39,
-  projectId: 17,
-  projectName: "Compliance Reporting Tool",
-  name: "Report template configuration",
-  workedHours: 3,
-  assigneeIds: [10, 13],
-  date: "2026-01-02",
-  status: "In Progress",
-  billingType: "billable",
-},
-{
-  id: 40,
-  projectId: 17,
-  projectName: "Compliance Reporting Tool",
-  name: "Export to XLSX",
-  workedHours: 2,
-  assigneeIds: [18, 21],
-  date: "2026-01-03",
-  status: "Not Started",
-  billingType: "billable",
-},
-
-// Project 18: Telemedicine Portal (PRJ-018)
-{
-  id: 41,
-  projectId: 18,
-  projectName: "Telemedicine Portal",
-  name: "Video consultation integration",
-  workedHours: 4.5,
-  assigneeIds: [7, 11],
-  date: "2026-01-03",
-  status: "In Progress",
-  billingType: "billable",
-},
-{
-  id: 42,
-  projectId: 18,
-  projectName: "Telemedicine Portal",
-  name: "Patient follow-up reminders",
-  workedHours: 2,
-  assigneeIds: [14, 16],
-  date: "2026-01-04",
-  status: "Not Started",
-  billingType: "billable",
-},
-
-// Project 19: Design System v2 (PRJ-019)
-{
-  id: 43,
-  projectId: 19,
-  projectName: "Design System v2",
-  name: "Token migration",
-  workedHours: 3.25,
-  assigneeIds: [5, 12],
-  date: "2026-01-04",
-  status: "Completed",
-  billingType: "non-billable",
-},
-{
-  id: 44,
-  projectId: 19,
-  projectName: "Design System v2",
-  name: "Storybook documentation",
-  workedHours: 2.5,
-  assigneeIds: [15, 17],
-  date: "2026-01-05",
-  status: "In Progress",
-  billingType: "non-billable",
-},
-
-// Project 20: Performance Optimization Sprint (PRJ-020)
-{
-  id: 45,
-  projectId: 20,
-  projectName: "Performance Optimization Sprint",
-  name: "Profiling and bottleneck analysis",
-  workedHours: 3.75,
-  assigneeIds: [2, 6],
-  date: "2026-01-05",
-  status: "In Progress",
-  billingType: "billable",
-},
-{
-  id: 46,
-  projectId: 20,
-  projectName: "Performance Optimization Sprint",
-  name: "Error rate SLO dashboard",
-  workedHours: 2,
-  assigneeIds: [13, 18],
-  date: "2026-01-06",
-  status: "Not Started",
-  billingType: "billable",
-},
-];
+// initialTasks export removed, use fetchTasksAction instead

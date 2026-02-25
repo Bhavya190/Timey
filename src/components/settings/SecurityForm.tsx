@@ -3,8 +3,11 @@
 
 import { FormEvent, useState, ChangeEvent } from "react";
 import { SettingsApi, SecurityPayload } from "@/lib/settings";
+import { updateAdminSecurityAction } from "@/app/actions";
+import { useUser } from "@/components/UserProvider";
 
 export default function SecurityForm() {
+  const { user, refreshUser } = useUser();
   const [form, setForm] = useState<SecurityPayload>({
     currentPassword: "",
     newPassword: "",
@@ -26,6 +29,8 @@ export default function SecurityForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!user) return;
+
     if (form.newPassword !== form.confirmPassword) {
       setError("New password and confirm password must match.");
       return;
@@ -34,7 +39,9 @@ export default function SecurityForm() {
     setMessage(null);
     setError(null);
     try {
-      await SettingsApi.updateSecurity(form);
+      await updateAdminSecurityAction(user.id, { password: form.newPassword });
+      await refreshUser();
+
       setMessage("Security settings updated.");
       setForm((prev) => ({
         ...prev,

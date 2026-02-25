@@ -2,7 +2,8 @@
 
 import React, { FormEvent, useEffect, useState } from "react";
 import { countries, currencies } from "@/lib/lookups";
-import type { Employee } from "@/lib/employees";
+import type { Employee as EmployeeSummary } from "@/lib/employees";
+import type { Employee as EmployeeProfile, Role } from "@/lib/users";
 import {
   UserCircle,
   IdentificationBadge,
@@ -15,9 +16,9 @@ type Props = {
   open: boolean;
   mode: Mode;
   onClose: () => void;
-  onSave: (employee: Employee) => void;
+  onSave: (employee: any) => void;
   nextCode: string;
-  employee?: Employee | null;
+  employee?: EmployeeSummary | null;
 };
 
 type TabKey = "basic" | "details" | "billing";
@@ -92,28 +93,29 @@ export default function AddEmployeeModal({
     if (isEdit && employee) {
       setEmail(employee.email);
       setCode(employee.code);
-      setFirstName(employee.name);
-      setMiddleName("");
-      setLastName("");
+      setFirstName(employee.firstName);
+      setMiddleName(employee.middleName || "");
+      setLastName(employee.lastName);
+      setRole((employee.role as any) || "employee");
       setDepartment(employee.department);
       setLocation(employee.location);
-      setShift("day");
-      setAddress("");
-      setCity("");
-      setStateRegion("");
-      setCountry("India");
-      setZip("");
-      setPhone("");
-      setHireDate("");
-      setTerminationDate("");
-      setWorkType("standard");
-      setBillingType("hourly");
-      setEmployeeRate("");
-      setEmployeeCurrency("INR - Indian Rupee");
-      setBillingRateType("fixed");
-      setBillingCurrency("INR - Indian Rupee");
-      setBillingStart("");
-      setBillingEnd("");
+      setShift((employee.shift as any) || "day");
+      setAddress(employee.address || "");
+      setCity(employee.city || "");
+      setStateRegion(employee.stateRegion || "");
+      setCountry(employee.country || "India");
+      setZip(employee.zip || "");
+      setPhone(employee.phone || "");
+      setHireDate(employee.hireDate || "");
+      setTerminationDate(employee.terminationDate || "");
+      setWorkType((employee.workType as any) || "standard");
+      setBillingType((employee.billingType as any) || "hourly");
+      setEmployeeRate(employee.employeeRate || "");
+      setEmployeeCurrency(employee.employeeCurrency || "INR - Indian Rupee");
+      setBillingRateType((employee.billingRateType as any) || "fixed");
+      setBillingCurrency(employee.billingCurrency || "INR - Indian Rupee");
+      setBillingStart(employee.billingStart || "");
+      setBillingEnd(employee.billingEnd || "");
       setActiveTab("basic");
       setError("");
     } else if (!isEdit) {
@@ -157,7 +159,7 @@ export default function AddEmployeeModal({
       setError("Please fill all required Basic fields (*) before continuing.");
       return false;
     }
-    if (!isEdit && (!firstName || !lastName || !password)) {
+    if (!isEdit && (!firstName || !lastName)) {
       setError("Please complete all required Basic fields for a new employee.");
       return false;
     }
@@ -178,19 +180,14 @@ export default function AddEmployeeModal({
 
     const baseName = fullName || employee?.name || email;
 
-    const newEmployee: Employee = {
-      id: isEdit && employee ? employee.id : Date.now(),
-      name: baseName,
+    const fullEmployeeData: any = {
+      firstName,
+      middleName,
+      lastName,
       email,
+      role,
       department,
       location,
-      code,
-      status: employee?.status ?? "Active",
-    };
-
-    console.log("Extra employee data (not persisted yet):", {
-      mode,
-      role,
       shift,
       address,
       city,
@@ -208,9 +205,10 @@ export default function AddEmployeeModal({
       billingCurrency,
       billingStart,
       billingEnd,
-    });
+      code,
+    };
 
-    onSave(newEmployee);
+    onSave(fullEmployeeData);
     onClose();
   };
 
@@ -280,11 +278,10 @@ export default function AddEmployeeModal({
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={`relative flex items-center gap-2 px-3 py-3 text-sm font-medium ${
-                activeTab === tab.key
-                  ? "text-emerald-500"
-                  : "text-muted hover:text-foreground"
-              }`}
+              className={`relative flex items-center gap-2 px-3 py-3 text-sm font-medium ${activeTab === tab.key
+                ? "text-emerald-500"
+                : "text-muted hover:text-foreground"
+                }`}
             >
               {tab.icon}
               <span>{tab.label}</span>
@@ -354,20 +351,6 @@ export default function AddEmployeeModal({
                   />
                 </div>
 
-                {!isEdit && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-foreground">
-                      Password<span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                      required
-                    />
-                  </div>
-                )}
 
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-foreground">

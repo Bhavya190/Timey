@@ -1,9 +1,11 @@
 // src/components/settings/ProfileForm.tsx
 "use client";
 
-import { FormEvent, useState, ChangeEvent } from "react";
+import { useEffect, FormEvent, useState, ChangeEvent } from "react";
 import { SettingsApi, ProfilePayload } from "@/lib/settings";
+import { updateAdminSettingsAction } from "@/app/actions";
 import { PencilIcon } from "lucide-react";
+import { useUser } from "@/components/UserProvider";
 
 type FieldProps = {
   label: string;
@@ -38,18 +40,35 @@ function Field({
 }
 
 export default function ProfileForm() {
+  const { user, refreshUser } = useUser();
   const [form, setForm] = useState<ProfilePayload>({
-    firstName: "",
-    middleName: "",
-    lastName: "",
-    email: "",
-    mobile: "",
-    avatarUrl: "",
+    firstName: user?.firstName || "",
+    middleName: user?.middleName || "",
+    lastName: user?.lastName || "",
+    email: user?.email || "",
+    mobile: user?.phone || "",
+    avatarUrl: user?.avatarUrl || "",
   });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      setForm({
+        firstName: user.firstName,
+        middleName: user.middleName || "",
+        lastName: user.lastName,
+        email: user.email,
+        mobile: user.phone,
+        avatarUrl: user.avatarUrl || "",
+      });
+      setPreviewUrl(user.avatarUrl || null);
+    }
+  }, [user]);
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target;
@@ -59,9 +78,36 @@ export default function ProfileForm() {
   function handleAvatarChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setAvatarFile(file);
-    const url = URL.createObjectURL(file);
-    setForm((prev) => ({ ...prev, avatarUrl: url }));
+
+    // Validate size (5MB = 5 * 1024 * 1024 bytes)
+    if (file.size > 5 * 1024 * 1024) {
+      setError("File is too large. Max size is 5MB.");
+      return;
+    }
+    setError(null);
+    setIsProcessingImage(true);
+
+    // Create a local URL for immediate preview (fixes the display bug)
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+
+    // Read file as base64 for final submission
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setAvatarFile(file);
+      // Update form state with base64 for submission
+      setForm((prev) => ({ ...prev, avatarUrl: base64String }));
+      setIsProcessingImage(false);
+    };
+    reader.onerror = () => {
+      setError("Failed to process image.");
+      setIsProcessingImage(false);
+    };
+    reader.readAsDataURL(file);
   }
 
   // trigger hidden input
@@ -79,12 +125,25 @@ export default function ProfileForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!user) return;
+
     setSaving(true);
     setMessage(null);
     setError(null);
     try {
-      // TODO: upload avatarFile to backend and use returned URL
-      await SettingsApi.updateProfile(form);
+      // Mapping mobile to phone for the database
+      const payload = {
+        firstName: form.firstName,
+        middleName: form.middleName,
+        lastName: form.lastName,
+        email: form.email,
+        phone: form.mobile,
+        avatarUrl: form.avatarUrl,
+      };
+
+      await updateAdminSettingsAction(user!.id, payload);
+      await refreshUser();
+
       setMessage("Profile updated successfully.");
     } catch (err: any) {
       setError(err.message || "Failed to update profile");
@@ -99,9 +158,9 @@ export default function ProfileForm() {
       <div className="flex items-center gap-4">
         <div className="relative">
           <div className="h-16 w-16 rounded-full bg-blue-100 flex items-center justify-center text-sm font-semibold text-blue-600 overflow-hidden">
-            {form.avatarUrl ? (
+            {previewUrl ? (
               <img
-                src={form.avatarUrl}
+                src={previewUrl}
                 alt="Profile"
                 className="h-full w-full object-cover rounded-full"
               />
@@ -184,10 +243,10 @@ export default function ProfileForm() {
       <div className="flex items-center gap-3">
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || isProcessingImage}
           className="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm hover:bg-emerald-400 disabled:opacity-60"
         >
-          {saving ? "Saving..." : "Save changes"}
+          {saving ? "Saving..." : isProcessingImage ? "Processing image..." : "Save changes"}
         </button>
         {message && (
           <p className="text-xs text-emerald-500">{message}</p>
