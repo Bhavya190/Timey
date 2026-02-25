@@ -2,14 +2,20 @@ FROM node:20-slim
 
 WORKDIR /app
 
+# Install ALL deps (including typescript for next.config.ts)
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci  # Not --only=production!
 
+# Generate Prisma
 COPY prisma ./prisma/
-RUN npx prisma generate  # No --binaryTargets flag!
+RUN npx prisma generate
 
+# Copy & build
 COPY . .
-RUN npm run build  # For Next.js
+RUN npm run build
 
-EXPOSE $PORT
+# Final environment settings
+ENV PORT=3000
+EXPOSE 3000
+
 CMD ["npm", "start"]
