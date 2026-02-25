@@ -12,7 +12,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY prisma ./prisma/
 RUN npx prisma generate
 COPY . .
-RUN npm run build  # Runs "migrate && next build" automatically!
+RUN npm run build  # prisma generate + next build (NO migrate!)
 
 # Production runner
 FROM node:20-bookworm-slim AS runner
@@ -26,10 +26,12 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-# Copy Prisma migrations for runtime access
+# Copy Prisma for runtime migrations
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/package.json ./package.json
 
 USER nextjs
 EXPOSE 10000
 ENV HOSTNAME="0.0.0.0"
-CMD ["node", "server.js"]
+CMD ["npm", "start"]  # Runs "migrate && next start" with DATABASE_URL!
