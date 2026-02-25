@@ -143,7 +143,7 @@ export default function AdminTasks() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"logs" | "summary">("logs");
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "date", direction: "desc" });
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "startDate", direction: "desc" });
 
   // --- Weekly date range state (header) ---
   // Initialize to current week [Mon..Sun]
@@ -263,7 +263,7 @@ export default function AdminTasks() {
               updateTaskAction(t.id, {
                 ...data,
                 workedHours: t.workedHours, // Preserve original hours for each log
-                date: t.date,               // Preserve original date
+                startDate: t.startDate,     // Preserve original date
               })
             )
           );
@@ -296,8 +296,8 @@ export default function AdminTasks() {
 
     let items = tasks.filter((task) => {
       const inRange =
-        (!startISO || task.date >= startISO) &&
-        (!endISO || task.date <= endISO);
+        (!startISO || task.startDate >= startISO) &&
+        (!endISO || task.startDate <= endISO);
 
       const matchesSearch =
         !term ||
@@ -508,10 +508,10 @@ export default function AdminTasks() {
                 {viewMode === "logs" && (
                   <th
                     className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
-                    onClick={() => handleSort("date")}
+                    onClick={() => handleSort("startDate")}
                   >
                     <div className="flex items-center gap-1">
-                      Date <SortIcon column="date" />
+                      Date <SortIcon column="startDate" />
                     </div>
                   </th>
                 )}
@@ -575,7 +575,7 @@ export default function AdminTasks() {
                   filteredTasks.filter(t => t.workedHours > 0).map((task) => (
                     <tr key={task.id} className="hover:bg-background/60">
                       <td className="px-4 py-3 text-muted">
-                        {formatHumanDate(task.date)}
+                        {formatHumanDate(task.startDate)}
                       </td>
                       <td className="px-4 py-3 text-foreground">
                         {task.name}

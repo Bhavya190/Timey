@@ -65,7 +65,8 @@ export default function TaskModal({
   const [taskName, setTaskName] = useState("");
   const [workedHours, setWorkedHours] = useState<string>("0");
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
-  const [date, setDate] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [dueDate, setDueDate] = useState<string>("");
   const [status, setStatus] = useState<TaskStatus>("Not Started");
   const [billingType, setBillingType] =
     useState<TaskBillingType>("billable");
@@ -86,7 +87,8 @@ export default function TaskModal({
       setTaskName(task.name);
       setWorkedHours(String(task.workedHours));
       setAssigneeIds(task.assigneeIds);
-      setDate(task.date);
+      setStartDate(task.startDate);
+      setDueDate(task.dueDate || "");
       setStatus(task.status);
       setBillingType(task.billingType ?? "billable");
       setError("");
@@ -96,7 +98,8 @@ export default function TaskModal({
       setTaskName("");
       setWorkedHours("0");
       setAssigneeIds([]);
-      setDate(todayISO());
+      setStartDate(todayISO());
+      setDueDate("");
       setStatus("Not Started");
       setBillingType("billable");
       setError("");
@@ -112,11 +115,11 @@ export default function TaskModal({
 
     const hours = Number(workedHours) || 0;
 
-    if (projectId == null || !taskName.trim() || !date) {
+    if (projectId == null || !taskName.trim() || !startDate) {
       setError(
         projectOptions.length === 0
           ? "No projects found. Please create a project before adding tasks."
-          : "Project, task name and date are required."
+          : "Project, task name and start date are required."
       );
       setActiveTab("details");
       return;
@@ -136,7 +139,8 @@ export default function TaskModal({
       name: taskName.trim(),
       workedHours: hours,
       assigneeIds,
-      date,
+      startDate,
+      dueDate: dueDate || undefined,
       status,
       billingType,
     };
@@ -354,18 +358,33 @@ export default function TaskModal({
                 />
               </div>
 
-              {/* Date */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-foreground">
-                  Date<span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full max-w-xs rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                {/* Start Date */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Start Date<span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                    required
+                  />
+                </div>
+
+                {/* Due Date */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
+                  />
+                </div>
               </div>
 
               {/* Status */}

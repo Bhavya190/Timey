@@ -10,7 +10,9 @@ export type Task = {
   name: string;
   workedHours: number;
   assigneeIds: number[];
-  date: string; // YYYY-MM-DD
+  startDate: string; // YYYY-MM-DD
+  dueDate?: string;
+  reportedTo?: string;
   status: TaskStatus;
   description?: string;
   billingType: TaskBillingType;
@@ -35,10 +37,10 @@ export async function createTask(data: Omit<Task, "id">): Promise<Task> {
   const result = await prisma.$queryRaw<any[]>`
     INSERT INTO "Task" (
       "projectId", "projectName", "name", "workedHours", 
-      "date", "status", "description", "billingType"
+      "startDate", "dueDate", "reportedTo", "status", "description", "billingType"
     ) VALUES (
       ${rest.projectId}, ${rest.projectName}, ${rest.name}, ${rest.workedHours}, 
-      ${rest.date}, ${rest.status}, ${rest.description || null}, ${rest.billingType}
+      ${rest.startDate}, ${rest.dueDate || null}, ${rest.reportedTo || null}, ${rest.status}, ${rest.description || null}, ${rest.billingType}
     ) RETURNING *
   `;
   const task = result[0];
@@ -70,7 +72,9 @@ export async function updateTask(id: number, data: Partial<Task>): Promise<Task>
       "projectName" = COALESCE(${rest.projectName || null}, "projectName"),
       "name" = COALESCE(${rest.name || null}, "name"),
       "workedHours" = COALESCE(${rest.workedHours ?? null}, "workedHours"),
-      "date" = COALESCE(${rest.date || null}, "date"),
+      "startDate" = COALESCE(${rest.startDate || null}, "startDate"),
+      "dueDate" = COALESCE(${rest.dueDate || null}, "dueDate"),
+      "reportedTo" = COALESCE(${rest.reportedTo || null}, "reportedTo"),
       "status" = COALESCE(${rest.status || null}, "status"),
       "description" = COALESCE(${rest.description || null}, "description"),
       "billingType" = COALESCE(${rest.billingType || null}, "billingType")

@@ -99,7 +99,9 @@ export interface Task {
     name: string;
     workedHours: number;
     assigneeIds: number[];
-    date: string; // YYYY-MM-DD
+    startDate: string; // YYYY-MM-DD
+    dueDate?: string;   // YYYY-MM-DD
+    reportedTo?: string;
     status: TaskStatus;
     description?: string;
     billingType: TaskBillingType;

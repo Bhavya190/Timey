@@ -106,10 +106,18 @@ export async function deleteProjectAction(id: number) {
 
 // Mutations - Tasks
 export async function createTaskAction(data: Omit<Task, "id">) {
-    return await createTask(data);
+    const user = await getCurrentUserAction();
+    return await createTask({
+        ...data,
+        reportedTo: user?.name || "System"
+    });
 }
 export async function updateTaskAction(id: number, data: Partial<Task>) {
-    return await updateTask(id, data);
+    const user = await getCurrentUserAction();
+    return await updateTask(id, {
+        ...data,
+        reportedTo: user?.name || undefined
+    });
 }
 export async function deleteTaskAction(id: number) {
     return await deleteTask(id);

@@ -118,7 +118,9 @@ model Task {
   projectName  String 
   name         String
   workedHours  Float
-  date         String
+  startDate    String   @default("")
+  dueDate      String?
+  reportedTo   String?
   status       String   @default("Not Started")
   description  String?
   billingType  String
