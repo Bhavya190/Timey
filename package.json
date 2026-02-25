@@ -4,9 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run migrate && next build",
+    "migrate": "npx prisma migrate deploy",
+    "build:next": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "prisma:generate": "prisma generate",
+    "prisma:studio": "prisma studio"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -35,7 +39,6 @@
     "prisma": "^5.22.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0"
-    
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
