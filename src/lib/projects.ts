@@ -20,6 +20,8 @@ export type Project = {
   description?: string;
   duration?: string;
   estimatedCost?: string;
+  budget?: string;
+  totalHours?: number;
   status: ProjectStatus;
 };
 
@@ -40,6 +42,8 @@ export async function getProjects(): Promise<Project[]> {
     description: p.description ?? undefined,
     duration: p.duration ?? undefined,
     estimatedCost: p.estimatedCost ?? undefined,
+    budget: p.estimatedCost ?? undefined,
+    totalHours: 0, // Placeholder
   }));
 }
 
@@ -74,6 +78,8 @@ export async function createProject(data: Omit<Project, "id">): Promise<Project>
     description: project.description ?? undefined,
     duration: project.duration ?? undefined,
     estimatedCost: project.estimatedCost ?? undefined,
+    budget: project.estimatedCost ?? undefined,
+    totalHours: 0,
   };
 }
 
@@ -128,6 +134,8 @@ export async function updateProject(id: number, data: Partial<Project>): Promise
     description: project.description ?? undefined,
     duration: project.duration ?? undefined,
     estimatedCost: project.estimatedCost ?? undefined,
+    budget: project.estimatedCost ?? undefined,
+    totalHours: 0,
   };
 }
 

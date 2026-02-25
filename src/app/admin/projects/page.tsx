@@ -10,7 +10,7 @@ import {
   deleteProjectAction,
 } from "@/app/actions";
 import ProjectModal from "@/components/ProjectModal";
-import { ChevronLeft, ChevronRight, Calendar, ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, ChevronUp, ChevronDown, FileDown } from "lucide-react";
 
 function StatusBadge({ status }: { status: ProjectStatus }) {
   const base =
@@ -118,6 +118,49 @@ export default function AdminProjects() {
     setEndISO(end);
   };
 
+  const filteredProjects = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    const items = projects.filter((project) => {
+      const projectStart =
+        project.startDate && project.startDate.length >= 10
+          ? project.startDate.slice(0, 10)
+          : "0000-01-01";
+      const projectEnd =
+        project.endDate && project.endDate.length >= 10
+          ? project.endDate.slice(0, 10)
+          : "9999-12-31";
+
+      const inRange = projectEnd >= startISO && projectStart <= endISO;
+
+      const matchesSearch =
+        !term ||
+        project.name.toLowerCase().includes(term) ||
+        project.code.toLowerCase().includes(term) ||
+        project.clientName.toLowerCase().includes(term) ||
+        project.status.toLowerCase().includes(term);
+
+      return inRange && matchesSearch;
+    });
+
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        let aVal = (a as any)[sortConfig.key] || "";
+        let bVal = (b as any)[sortConfig.key] || "";
+
+        if (sortConfig.key === "startDate" || sortConfig.key === "endDate") {
+          aVal = aVal || (sortConfig.direction === "asc" ? "9999-99-99" : "0000-00-00");
+          bVal = bVal || (sortConfig.direction === "asc" ? "9999-99-99" : "0000-00-00");
+        }
+
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return items;
+  }, [projects, searchTerm, startISO, endISO, sortConfig]);
+
   const handleRowClick = (id: number) => {
     router.push(`/admin/projects/${id}`);
   };
@@ -182,6 +225,42 @@ export default function AdminProjects() {
     setSelectedProject(null);
   };
 
+  const handleExportCSV = () => {
+    if (filteredProjects.length === 0) {
+      alert("No data to export for current filters.");
+      return;
+    }
+
+    const exportRows = filteredProjects.map((p) => ({
+      Name: p.name,
+      Status: p.status,
+      Code: p.code,
+      Client: p.clientName,
+      StartDate: p.startDate || "",
+      EndDate: p.endDate || "",
+      Budget: p.budget || 0,
+      TotalHours: p.totalHours || 0,
+    }));
+
+    const header = Object.keys(exportRows[0]);
+    const csv = [
+      header,
+      ...exportRows.map((row) => header.map((key) => (row as any)[key])),
+    ]
+      .map((r) =>
+        r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")
+      )
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `projects_${startISO}_to_${endISO}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const nextId =
     projects.length === 0 ? 1 : Math.max(...projects.map((p) => p.id)) + 1;
 
@@ -200,49 +279,6 @@ export default function AdminProjects() {
       <ChevronDown className="h-3 w-3" />
     );
   };
-
-  const filteredProjects = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-
-    const items = projects.filter((project) => {
-      const projectStart =
-        project.startDate && project.startDate.length >= 10
-          ? project.startDate.slice(0, 10)
-          : "0000-01-01";
-      const projectEnd =
-        project.endDate && project.endDate.length >= 10
-          ? project.endDate.slice(0, 10)
-          : "9999-12-31";
-
-      const inRange = projectEnd >= startISO && projectStart <= endISO;
-
-      const matchesSearch =
-        !term ||
-        project.name.toLowerCase().includes(term) ||
-        project.code.toLowerCase().includes(term) ||
-        project.clientName.toLowerCase().includes(term) ||
-        project.status.toLowerCase().includes(term);
-
-      return inRange && matchesSearch;
-    });
-
-    if (sortConfig.key) {
-      items.sort((a, b) => {
-        let aVal = (a as any)[sortConfig.key] || "";
-        let bVal = (b as any)[sortConfig.key] || "";
-
-        if (sortConfig.key === "startDate" || sortConfig.key === "endDate") {
-          aVal = aVal || (sortConfig.direction === "asc" ? "9999-99-99" : "0000-00-00");
-          bVal = bVal || (sortConfig.direction === "asc" ? "9999-99-99" : "0000-00-00");
-        }
-
-        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-    return items;
-  }, [projects, searchTerm, startISO, endISO, sortConfig]);
 
   return (
     <div className="space-y-4">
@@ -336,6 +372,14 @@ export default function AdminProjects() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full sm:w-64 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40"
             />
+
+            <button
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-1.5 text-xs font-medium text-foreground hover:bg-card transition-colors"
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              Export CSV
+            </button>
           </div>
         </div>
 

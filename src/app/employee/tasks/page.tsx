@@ -131,12 +131,12 @@ export default function EmployeeTasksPage({ currentEmployeeId: propId }: { curre
   const filteredTasksByWeek = useMemo(() => {
     const { start, end } = dateRange;
     return employeeInitialTasks.filter(
-      (t) => t.startDate >= start && t.startDate <= end
+      (t) => t.date >= start && t.date <= end
     );
   }, [employeeInitialTasks, dateRange]);
 
   const [viewMode, setViewMode] = useState<"logs" | "summary">("logs");
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "startDate", direction: "desc" });
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "date", direction: "desc" });
   const [openMenuId, setOpenMenuId] = useState<number | string | null>(null);
 
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -294,7 +294,7 @@ export default function EmployeeTasksPage({ currentEmployeeId: propId }: { curre
       const { deleteTaskAction } = await import("@/app/actions");
       const { start, end } = dateRange;
       const tasksToRemove = employeeInitialTasks.filter(
-        (t) => t.projectId === projectId && t.name === name && t.startDate >= start && t.startDate <= end
+        (t) => t.projectId === projectId && t.name === name && t.date >= start && t.date <= end
       );
 
       await Promise.all(tasksToRemove.map((t) => deleteTaskAction(t.id)));
@@ -313,7 +313,7 @@ export default function EmployeeTasksPage({ currentEmployeeId: propId }: { curre
       const { updateTaskAction } = await import("@/app/actions");
       const { start, end } = dateRange;
       const tasksToUpdate = employeeInitialTasks.filter(
-        (t) => t.projectId === editingGroup.projectId && t.name === editingGroup.name && t.startDate >= start && t.startDate <= end
+        (t) => t.projectId === editingGroup.projectId && t.name === editingGroup.name && t.date >= start && t.date <= end
       );
 
       const updatedResults = await Promise.all(
@@ -512,10 +512,10 @@ export default function EmployeeTasksPage({ currentEmployeeId: propId }: { curre
                 {viewMode === "logs" && (
                   <th
                     className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
-                    onClick={() => handleSort("startDate")}
+                    onClick={() => handleSort("date")}
                   >
                     <div className="flex items-center gap-1">
-                      Date <SortIcon column="startDate" />
+                      Date <SortIcon column="date" />
                     </div>
                   </th>
                 )}
@@ -561,7 +561,7 @@ export default function EmployeeTasksPage({ currentEmployeeId: propId }: { curre
                 tasks.filter(t => t.workedHours > 0).map((task) => (
                   <tr key={task.id} className="hover:bg-background/60">
                     <td className="px-4 py-3 text-foreground">
-                      {formatHumanDate(task.startDate)}
+                      {formatHumanDate(task.date)}
                     </td>
                     <td className="px-4 py-3 text-foreground">{task.name}</td>
                     <td className="px-4 py-3 text-muted">{task.projectName}</td>

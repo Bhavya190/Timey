@@ -87,7 +87,7 @@ export default function TaskModal({
       setTaskName(task.name);
       setWorkedHours(String(task.workedHours));
       setAssigneeIds(task.assigneeIds);
-      setStartDate(task.startDate);
+      setStartDate(task.date);
       setDueDate(task.dueDate || "");
       setStatus(task.status);
       setBillingType(task.billingType ?? "billable");
@@ -139,7 +139,7 @@ export default function TaskModal({
       name: taskName.trim(),
       workedHours: hours,
       assigneeIds,
-      startDate,
+      date: startDate,
       dueDate: dueDate || undefined,
       status,
       billingType,

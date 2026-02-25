@@ -28,6 +28,7 @@ import {
   Eye,
   Pencil,
   Trash2,
+  FileDown,
 } from "lucide-react";
 
 // Helper to get employees by ID from state
@@ -143,7 +144,7 @@ export default function AdminTasks() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"logs" | "summary">("logs");
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "startDate", direction: "desc" });
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "date", direction: "desc" });
 
   // --- Weekly date range state (header) ---
   // Initialize to current week [Mon..Sun]
@@ -192,6 +193,78 @@ export default function AdminTasks() {
     setStartISO(start);
     setEndISO(end);
   };
+
+  const filteredTasks = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    let items = tasks.filter((task) => {
+      const inRange =
+        (!startISO || task.date >= startISO) &&
+        (!endISO || task.date <= endISO);
+
+      const matchesSearch =
+        !term ||
+        task.name.toLowerCase().includes(term) ||
+        task.projectName.toLowerCase().includes(term) ||
+        formatAssignees(task.assigneeIds).toLowerCase().includes(term) ||
+        task.billingType.toLowerCase().includes(term) ||
+        task.status.toLowerCase().includes(term);
+
+      return inRange && matchesSearch;
+    });
+
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        const aVal = (a as any)[sortConfig.key];
+        const bVal = (b as any)[sortConfig.key];
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return items;
+  }, [tasks, searchTerm, startISO, endISO, sortConfig]);
+
+  const summarizedTasks = useMemo(() => {
+    const groups: Record<string, { task: Task; totalHours: number }> = {};
+    filteredTasks.forEach((t) => {
+      const key = `${t.projectId}-${t.name}`;
+      if (!groups[key]) {
+        groups[key] = { task: t, totalHours: 0 };
+      }
+      groups[key].totalHours += t.workedHours;
+    });
+
+    const items = Object.values(groups);
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        let aVal: any, bVal: any;
+        if (sortConfig.key === "workedHours") {
+          aVal = a.totalHours;
+          bVal = b.totalHours;
+        } else if (sortConfig.key === "name") {
+          aVal = a.task.name;
+          bVal = b.task.name;
+        } else if (sortConfig.key === "projectName") {
+          aVal = a.task.projectName;
+          bVal = b.task.projectName;
+        } else if (sortConfig.key === "status") {
+          aVal = a.task.status;
+          bVal = b.task.status;
+        } else if (sortConfig.key === "billingType") {
+          aVal = a.task.billingType;
+          bVal = b.task.billingType;
+        } else {
+          return 0;
+        }
+
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return items;
+  }, [filteredTasks, sortConfig]);
 
   const toggleMenu = (id: number) => {
     setOpenMenuId((prev) => (prev === id ? null : id));
@@ -263,7 +336,7 @@ export default function AdminTasks() {
               updateTaskAction(t.id, {
                 ...data,
                 workedHours: t.workedHours, // Preserve original hours for each log
-                startDate: t.startDate,     // Preserve original date
+                date: t.date,     // Preserve original date
               })
             )
           );
@@ -288,80 +361,44 @@ export default function AdminTasks() {
     }
   };
 
+  const handleExportCSV = () => {
+    if (filteredTasks.length === 0) {
+      alert("No data to export for current filters.");
+      return;
+    }
+
+    const exportRows = filteredTasks.map((t) => ({
+      Date: t.date,
+      Task: t.name,
+      Project: t.projectName,
+      WorkedHours: t.workedHours.toFixed(2),
+      Assignees: formatAssignees(t.assigneeIds),
+      Billing: t.billingType,
+      Status: t.status,
+      Description: t.description || "",
+    }));
+
+    const header = Object.keys(exportRows[0]);
+    const csv = [
+      header,
+      ...exportRows.map((row) => header.map((key) => (row as any)[key])),
+    ]
+      .map((r) =>
+        r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")
+      )
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `tasks_${startISO}_to_${endISO}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const nextId =
     tasks.length === 0 ? 1 : Math.max(...tasks.map((t) => t.id)) + 1;
-
-  const filteredTasks = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-
-    let items = tasks.filter((task) => {
-      const inRange =
-        (!startISO || task.startDate >= startISO) &&
-        (!endISO || task.startDate <= endISO);
-
-      const matchesSearch =
-        !term ||
-        task.name.toLowerCase().includes(term) ||
-        task.projectName.toLowerCase().includes(term) ||
-        formatAssignees(task.assigneeIds).toLowerCase().includes(term) ||
-        task.billingType.toLowerCase().includes(term) ||
-        task.status.toLowerCase().includes(term);
-
-      return inRange && matchesSearch;
-    });
-
-    if (sortConfig.key) {
-      items.sort((a, b) => {
-        const aVal = (a as any)[sortConfig.key];
-        const bVal = (b as any)[sortConfig.key];
-        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-    return items;
-  }, [tasks, searchTerm, startISO, endISO, sortConfig]);
-
-  const summarizedTasks = useMemo(() => {
-    const groups: Record<string, { task: Task; totalHours: number }> = {};
-    filteredTasks.forEach((t) => {
-      const key = `${t.projectId}-${t.name}`;
-      if (!groups[key]) {
-        groups[key] = { task: t, totalHours: 0 };
-      }
-      groups[key].totalHours += t.workedHours;
-    });
-
-    const items = Object.values(groups);
-    if (sortConfig.key) {
-      items.sort((a, b) => {
-        let aVal: any, bVal: any;
-        if (sortConfig.key === "workedHours") {
-          aVal = a.totalHours;
-          bVal = b.totalHours;
-        } else if (sortConfig.key === "name") {
-          aVal = a.task.name;
-          bVal = b.task.name;
-        } else if (sortConfig.key === "projectName") {
-          aVal = a.task.projectName;
-          bVal = b.task.projectName;
-        } else if (sortConfig.key === "status") {
-          aVal = a.task.status;
-          bVal = b.task.status;
-        } else if (sortConfig.key === "billingType") {
-          aVal = a.task.billingType;
-          bVal = b.task.billingType;
-        } else {
-          return 0;
-        }
-
-        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-    return items;
-  }, [filteredTasks, sortConfig]);
 
   const handleSort = (key: string) => {
     setSortConfig((prev) => ({
@@ -497,6 +534,14 @@ export default function AdminTasks() {
                 Task Summary
               </button>
             </div>
+
+            <button
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-1.5 text-xs font-medium text-foreground hover:bg-card transition-colors"
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              Export CSV
+            </button>
           </div>
         </div>
 
@@ -508,10 +553,10 @@ export default function AdminTasks() {
                 {viewMode === "logs" && (
                   <th
                     className="px-4 py-3 font-medium cursor-pointer hover:text-foreground transition-colors"
-                    onClick={() => handleSort("startDate")}
+                    onClick={() => handleSort("date")}
                   >
                     <div className="flex items-center gap-1">
-                      Date <SortIcon column="startDate" />
+                      Date <SortIcon column="date" />
                     </div>
                   </th>
                 )}
@@ -575,7 +620,7 @@ export default function AdminTasks() {
                   filteredTasks.filter(t => t.workedHours > 0).map((task) => (
                     <tr key={task.id} className="hover:bg-background/60">
                       <td className="px-4 py-3 text-muted">
-                        {formatHumanDate(task.startDate)}
+                        {formatHumanDate(task.date)}
                       </td>
                       <td className="px-4 py-3 text-foreground">
                         {task.name}

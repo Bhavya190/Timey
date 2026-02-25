@@ -10,7 +10,7 @@ export type Task = {
   name: string;
   workedHours: number;
   assigneeIds: number[];
-  startDate: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD
   dueDate?: string;
   reportedTo?: string;
   status: TaskStatus;
@@ -27,6 +27,7 @@ export async function getTasks(): Promise<Task[]> {
     status: t.status as TaskStatus,
     billingType: t.billingType as TaskBillingType,
     assigneeIds: relations.filter(r => r.B === t.id).map(r => r.A),
+    date: t.startDate,
     description: t.description ?? undefined,
   }));
 }
@@ -40,7 +41,7 @@ export async function createTask(data: Omit<Task, "id">): Promise<Task> {
       "startDate", "dueDate", "reportedTo", "status", "description", "billingType"
     ) VALUES (
       ${rest.projectId}, ${rest.projectName}, ${rest.name}, ${rest.workedHours}, 
-      ${rest.startDate}, ${rest.dueDate || null}, ${rest.reportedTo || null}, ${rest.status}, ${rest.description || null}, ${rest.billingType}
+      ${rest.date}, ${rest.dueDate || null}, ${rest.reportedTo || null}, ${rest.status}, ${rest.description || null}, ${rest.billingType}
     ) RETURNING *
   `;
   const task = result[0];
@@ -58,6 +59,7 @@ export async function createTask(data: Omit<Task, "id">): Promise<Task> {
     status: task.status as TaskStatus,
     billingType: task.billingType as TaskBillingType,
     assigneeIds: assigneeIds ?? [],
+    date: task.startDate,
     description: task.description ?? undefined,
   };
 }
@@ -72,7 +74,7 @@ export async function updateTask(id: number, data: Partial<Task>): Promise<Task>
       "projectName" = COALESCE(${rest.projectName || null}, "projectName"),
       "name" = COALESCE(${rest.name || null}, "name"),
       "workedHours" = COALESCE(${rest.workedHours ?? null}, "workedHours"),
-      "startDate" = COALESCE(${rest.startDate || null}, "startDate"),
+      "startDate" = COALESCE(${rest.date || null}, "startDate"),
       "dueDate" = COALESCE(${rest.dueDate || null}, "dueDate"),
       "reportedTo" = COALESCE(${rest.reportedTo || null}, "reportedTo"),
       "status" = COALESCE(${rest.status || null}, "status"),
@@ -99,6 +101,7 @@ export async function updateTask(id: number, data: Partial<Task>): Promise<Task>
     status: task.status as TaskStatus,
     billingType: task.billingType as TaskBillingType,
     assigneeIds: currentRelations.map(r => r.A),
+    date: task.startDate,
     description: task.description ?? undefined,
   };
 }

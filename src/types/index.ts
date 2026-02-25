@@ -82,6 +82,8 @@ export interface Project {
     fixedCost?: string;
     startDate?: string;
     endDate?: string;
+    budget?: string;
+    totalHours?: number;
     invoiceFileName?: string;
     description?: string;
     duration?: string;
@@ -99,7 +101,7 @@ export interface Task {
     name: string;
     workedHours: number;
     assigneeIds: number[];
-    startDate: string; // YYYY-MM-DD
+    date: string; // YYYY-MM-DD
     dueDate?: string;   // YYYY-MM-DD
     reportedTo?: string;
     status: TaskStatus;
