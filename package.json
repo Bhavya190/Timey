@@ -4,14 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma db push --accept-data-loss && next build",
+    "build": "prisma generate && next build",
     "migrate": "prisma migrate deploy",
     "start": "prisma generate && npm run migrate && next start",
     "lint": "eslint",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
     "prisma:db-pull": "prisma db pull",
-    "prisma:push": "prisma db push",
+    "prisma:push": "prisma db push --accept-data-loss",
     "prisma:check": "prisma validate"
   },
   "dependencies": {
