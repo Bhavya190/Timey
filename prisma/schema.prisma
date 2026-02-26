@@ -9,8 +9,6 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  // Dummy directUrl for build-time client generation (no validation, ignored at runtime)
-  directUrl = "file:./dev.db"
 }
 
 enum Role {

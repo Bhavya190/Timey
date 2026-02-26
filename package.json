@@ -4,16 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npx prisma@latest generate --no-engine && next build",
-    "migrate": "prisma migrate deploy",
-    "start": "prisma generate && npm run migrate && next start",
+    "build": "prisma generate --no-engine && next build",
+    "start": "next start",
+    "deploy": "prisma migrate deploy && prisma generate && next start",
     "lint": "eslint",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
     "prisma:db-pull": "prisma db pull",
     "prisma:push": "prisma db push --accept-data-loss",
     "prisma:check": "prisma validate"
-  },
+    },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
     "@prisma/client": "^5.22.0",
