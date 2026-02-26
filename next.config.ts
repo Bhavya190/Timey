@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "10mb",
     },
   },
+  // Optimize Prisma client bundling for standalone deploys
+  transpilePackages: ['@prisma/client'],
 };
 
 export default nextConfig;
