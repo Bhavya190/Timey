@@ -232,7 +232,12 @@ export async function loginAction(email: string, password: string): Promise<{ su
 
         return { success: true, role: user.role, token };
     } catch (error) {
-        console.error("Login error:", error);
+        console.error("Login Error Details:", error);
+        if (error instanceof Error) {
+            console.error("Error Name:", error.name);
+            console.error("Error Message:", error.message);
+            console.error("Error Stack:", error.stack);
+        }
         return { success: false, role: "employee", message: "An unexpected error occurred" };
     }
 }

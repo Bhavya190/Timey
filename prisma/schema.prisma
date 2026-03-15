@@ -90,12 +90,12 @@ model Project {
   name               String
   code               String   @unique
   clientId           Int
-  client             Client   @relation(fields: [clientId], references: [id])
+  client             Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientName         String 
   teamLeadId         Int?
-  teamLead           Employee? @relation("TeamLead", fields: [teamLeadId], references: [id])
+  teamLead           Employee? @relation("TeamLead", fields: [teamLeadId], references: [id], onDelete: SetNull)
   managerId          Int?
-  manager            Employee? @relation("Manager", fields: [managerId], references: [id])
+  manager            Employee? @relation("Manager", fields: [managerId], references: [id], onDelete: SetNull)
   defaultBillingRate String?
   billingType        String?
   fixedCost          String?
@@ -115,7 +115,7 @@ model Project {
 model Task {
   id           Int      @id @default(autoincrement())
   projectId    Int
-  project      Project  @relation(fields: [projectId], references: [id])
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectName  String 
   name         String
   workedHours  Float
@@ -133,7 +133,7 @@ model Task {
 model Timesheet {
   id         Int      @id @default(autoincrement())
   employeeId Int
-  employee   Employee @relation(fields: [employeeId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   weekStart  String   // ISO date string (Monday)
   status     String   @default("Not Submitted")
 

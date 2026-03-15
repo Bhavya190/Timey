@@ -19,96 +19,101 @@ export type Task = {
 };
 
 export async function getTasks(): Promise<Task[]> {
-  const tasks = await prisma.$queryRaw<any[]>`SELECT * FROM "Task"`;
-  const relations = await prisma.$queryRaw<any[]>`SELECT * FROM "_AssigneeTasks"`;
+  const tasks = await prisma.task.findMany({
+    include: {
+      assignees: {
+        select: { id: true }
+      }
+    }
+  });
 
   return tasks.map(t => ({
-    ...t,
-    status: t.status as TaskStatus,
-    billingType: t.billingType as TaskBillingType,
-    assigneeIds: relations.filter(r => r.B === t.id).map(r => r.A),
+    id: t.id,
+    projectId: t.projectId,
+    projectName: t.projectName,
+    name: t.name,
+    workedHours: t.workedHours,
     date: t.startDate,
+    dueDate: t.dueDate ?? undefined,
+    reportedTo: t.reportedTo ?? undefined,
+    status: t.status as TaskStatus,
     description: t.description ?? undefined,
+    billingType: t.billingType as TaskBillingType,
+    assigneeIds: t.assignees.map(a => a.id),
   }));
 }
 
 export async function createTask(data: Omit<Task, "id">): Promise<Task> {
-  const { assigneeIds, ...rest } = data;
+  const { assigneeIds, date, ...rest } = data;
 
-  const result = await prisma.$queryRaw<any[]>`
-    INSERT INTO "Task" (
-      "projectId", "projectName", "name", "workedHours", 
-      "startDate", "dueDate", "reportedTo", "status", "description", "billingType"
-    ) VALUES (
-      ${rest.projectId}, ${rest.projectName}, ${rest.name}, ${rest.workedHours}, 
-      ${rest.date}, ${rest.dueDate || null}, ${rest.reportedTo || null}, ${rest.status}, ${rest.description || null}, ${rest.billingType}
-    ) RETURNING *
-  `;
-  const task = result[0];
-
-  if (assigneeIds && assigneeIds.length > 0) {
-    for (const empId of assigneeIds) {
-      await prisma.$executeRaw`
-        INSERT INTO "_AssigneeTasks" ("A", "B") VALUES (${empId}, ${task.id})
-      `;
+  const task = await prisma.task.create({
+    data: {
+      ...rest,
+      startDate: date,
+      assignees: assigneeIds ? {
+        connect: assigneeIds.map(id => ({ id }))
+      } : undefined
+    },
+    include: {
+      assignees: {
+        select: { id: true }
+      }
     }
-  }
+  });
 
   return {
-    ...task,
-    status: task.status as TaskStatus,
-    billingType: task.billingType as TaskBillingType,
-    assigneeIds: assigneeIds ?? [],
+    id: task.id,
+    projectId: task.projectId,
+    projectName: task.projectName,
+    name: task.name,
+    workedHours: task.workedHours,
     date: task.startDate,
+    dueDate: task.dueDate ?? undefined,
+    reportedTo: task.reportedTo ?? undefined,
+    status: task.status as TaskStatus,
     description: task.description ?? undefined,
+    billingType: task.billingType as TaskBillingType,
+    assigneeIds: task.assignees.map(a => a.id),
   };
 }
 
 export async function updateTask(id: number, data: Partial<Task>): Promise<Task> {
-  const { assigneeIds, ...rest } = data;
+  const { assigneeIds, date, ...rest } = data;
 
-  const result = await prisma.$queryRaw<any[]>`
-    UPDATE "Task"
-    SET 
-      "projectId" = COALESCE(${rest.projectId || null}, "projectId"),
-      "projectName" = COALESCE(${rest.projectName || null}, "projectName"),
-      "name" = COALESCE(${rest.name || null}, "name"),
-      "workedHours" = COALESCE(${rest.workedHours ?? null}, "workedHours"),
-      "startDate" = COALESCE(${rest.date || null}, "startDate"),
-      "dueDate" = COALESCE(${rest.dueDate || null}, "dueDate"),
-      "reportedTo" = COALESCE(${rest.reportedTo || null}, "reportedTo"),
-      "status" = COALESCE(${rest.status || null}, "status"),
-      "description" = COALESCE(${rest.description || null}, "description"),
-      "billingType" = COALESCE(${rest.billingType || null}, "billingType")
-    WHERE "id" = ${id}
-    RETURNING *
-  `;
-  const task = result[0];
-
-  if (assigneeIds) {
-    await prisma.$executeRaw`DELETE FROM "_AssigneeTasks" WHERE "B" = ${id}`;
-    for (const empId of assigneeIds) {
-      await prisma.$executeRaw`
-        INSERT INTO "_AssigneeTasks" ("A", "B") VALUES (${empId}, ${id})
-      `;
+  const task = await prisma.task.update({
+    where: { id },
+    data: {
+      ...rest,
+      startDate: date,
+      assignees: assigneeIds ? {
+        set: assigneeIds.map(id => ({ id }))
+      } : undefined
+    },
+    include: {
+      assignees: {
+        select: { id: true }
+      }
     }
-  }
-
-  const currentRelations = await prisma.$queryRaw<any[]>`SELECT "A" FROM "_AssigneeTasks" WHERE "B" = ${id}`;
+  });
 
   return {
-    ...task,
-    status: task.status as TaskStatus,
-    billingType: task.billingType as TaskBillingType,
-    assigneeIds: currentRelations.map(r => r.A),
+    id: task.id,
+    projectId: task.projectId,
+    projectName: task.projectName,
+    name: task.name,
+    workedHours: task.workedHours,
     date: task.startDate,
+    dueDate: task.dueDate ?? undefined,
+    reportedTo: task.reportedTo ?? undefined,
+    status: task.status as TaskStatus,
     description: task.description ?? undefined,
+    billingType: task.billingType as TaskBillingType,
+    assigneeIds: task.assignees.map(a => a.id),
   };
 }
 
 export async function deleteTask(id: number): Promise<void> {
-  await prisma.$executeRaw`DELETE FROM "_AssigneeTasks" WHERE "B" = ${id}`;
-  await prisma.$executeRaw`DELETE FROM "Task" WHERE "id" = ${id}`;
+  await prisma.task.delete({
+    where: { id }
+  });
 }
-
-// initialTasks export removed, use fetchTasksAction instead

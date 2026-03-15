@@ -19,7 +19,7 @@ export type Client = {
 };
 
 export async function getClients(): Promise<Client[]> {
-  const clients = await prisma.$queryRaw<any[]>`SELECT * FROM "Client"`;
+  const clients = await prisma.client.findMany();
   return clients.map((c: any) => ({
     ...c,
     status: c.status as ClientStatus,
@@ -35,12 +35,9 @@ export async function getClients(): Promise<Client[]> {
 }
 
 export async function createClient(data: Omit<Client, "id">): Promise<Client> {
-  const result = await prisma.$queryRaw<any[]>`
-    INSERT INTO "Client" ("name", "nickname", "email", "country", "address", "city", "stateRegion", "zip", "contactNumber", "defaultRate", "fixedBidMode", "status")
-    VALUES (${data.name}, ${data.nickname || null}, ${data.email}, ${data.country}, ${data.address || null}, ${data.city || null}, ${data.stateRegion || null}, ${data.zip || null}, ${data.contactNumber || null}, ${data.defaultRate || null}, ${data.fixedBidMode}, ${data.status})
-    RETURNING *
-  `;
-  const client = result[0];
+  const client = await prisma.client.create({
+    data
+  });
   return {
     ...client,
     status: client.status as ClientStatus,
@@ -56,25 +53,10 @@ export async function createClient(data: Omit<Client, "id">): Promise<Client> {
 }
 
 export async function updateClient(id: number, data: Partial<Client>): Promise<Client> {
-  const result = await prisma.$queryRaw<any[]>`
-    UPDATE "Client"
-    SET 
-      "name" = COALESCE(${data.name || null}, "name"),
-      "nickname" = COALESCE(${data.nickname || null}, "nickname"),
-      "email" = COALESCE(${data.email || null}, "email"),
-      "country" = COALESCE(${data.country || null}, "country"),
-      "address" = COALESCE(${data.address || null}, "address"),
-      "city" = COALESCE(${data.city || null}, "city"),
-      "stateRegion" = COALESCE(${data.stateRegion || null}, "stateRegion"),
-      "zip" = COALESCE(${data.zip || null}, "zip"),
-      "contactNumber" = COALESCE(${data.contactNumber || null}, "contactNumber"),
-      "defaultRate" = COALESCE(${data.defaultRate || null}, "defaultRate"),
-      "fixedBidMode" = COALESCE(${data.fixedBidMode ?? null}, "fixedBidMode"),
-      "status" = COALESCE(${data.status || null}, "status")
-    WHERE "id" = ${id}
-    RETURNING *
-  `;
-  const client = result[0];
+  const client = await prisma.client.update({
+    where: { id },
+    data
+  });
   return {
     ...client,
     status: client.status as ClientStatus,
@@ -94,5 +76,3 @@ export async function deleteClient(id: number): Promise<void> {
     where: { id }
   });
 }
-
-// initialClients export removed, use fetchClientsAction instead

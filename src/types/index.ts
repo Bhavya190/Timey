@@ -39,7 +39,7 @@ export interface Employee {
     billingRateType: "fixed" | "hourly";
     billingCurrency: string;
     billingStart: string;
-    billingEnd: string;
+    billingEnd?: string;
     avatarUrl?: string;
     emailNotifications?: boolean;
     weeklyReport?: boolean;

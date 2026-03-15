@@ -26,14 +26,19 @@ export type Project = {
 };
 
 export async function getProjects(): Promise<Project[]> {
-  const projects = await prisma.$queryRaw<any[]>`SELECT * FROM "Project"`;
-  const relations = await prisma.$queryRaw<any[]>`SELECT * FROM "_TeamMembers"`;
+  const projects = await prisma.project.findMany({
+    include: {
+      teamMembers: {
+        select: { id: true }
+      }
+    }
+  });
 
   return projects.map(p => ({
     ...p,
     status: p.status as ProjectStatus,
     billingType: p.billingType as "fixed" | "hourly" | undefined,
-    teamMemberIds: relations.filter(r => r.B === p.id).map(r => r.A),
+    teamMemberIds: p.teamMembers.map(tm => tm.id),
     defaultBillingRate: p.defaultBillingRate ?? undefined,
     fixedCost: p.fixedCost ?? undefined,
     startDate: p.startDate ?? undefined,
@@ -48,28 +53,28 @@ export async function getProjects(): Promise<Project[]> {
 }
 
 export async function createProject(data: Omit<Project, "id">): Promise<Project> {
-  const { teamMemberIds, ...rest } = data;
+  const { teamMemberIds, budget, totalHours, ...rest } = data;
 
-  const result = await prisma.$queryRaw<any[]>`
-    INSERT INTO "Project" ("name", "code", "clientId", "clientName", "teamLeadId", "managerId", "defaultBillingRate", "billingType", "fixedCost", "startDate", "endDate", "invoiceFileName", "description", "duration", "estimatedCost", "status")
-    VALUES (${rest.name}, ${rest.code}, ${rest.clientId}, ${rest.clientName}, ${rest.teamLeadId}, ${rest.managerId}, ${rest.defaultBillingRate || null}, ${rest.billingType || null}, ${rest.fixedCost || null}, ${rest.startDate || null}, ${rest.endDate || null}, ${rest.invoiceFileName || null}, ${rest.description || null}, ${rest.duration || null}, ${rest.estimatedCost || null}, ${rest.status})
-    RETURNING *
-  `;
-  const project = result[0];
-
-  if (teamMemberIds && teamMemberIds.length > 0) {
-    for (const empId of teamMemberIds) {
-      await prisma.$executeRaw`
-        INSERT INTO "_TeamMembers" ("A", "B") VALUES (${empId}, ${project.id})
-      `;
+  const project = await prisma.project.create({
+    data: {
+      ...rest,
+      estimatedCost: budget || rest.estimatedCost, // Map budget to estimatedCost
+      teamMembers: teamMemberIds ? {
+        connect: teamMemberIds.map(id => ({ id }))
+      } : undefined
+    },
+    include: {
+      teamMembers: {
+        select: { id: true }
+      }
     }
-  }
+  });
 
   return {
     ...project,
     status: project.status as ProjectStatus,
     billingType: project.billingType as "fixed" | "hourly" | undefined,
-    teamMemberIds: teamMemberIds || [],
+    teamMemberIds: project.teamMembers.map(tm => tm.id),
     defaultBillingRate: project.defaultBillingRate ?? undefined,
     fixedCost: project.fixedCost ?? undefined,
     startDate: project.startDate ?? undefined,
@@ -84,48 +89,29 @@ export async function createProject(data: Omit<Project, "id">): Promise<Project>
 }
 
 export async function updateProject(id: number, data: Partial<Project>): Promise<Project> {
-  const { teamMemberIds, ...rest } = data;
+  const { teamMemberIds, budget, totalHours, ...rest } = data;
 
-  const result = await prisma.$queryRaw<any[]>`
-    UPDATE "Project"
-    SET 
-      "name" = COALESCE(${rest.name || null}, "name"),
-      "code" = COALESCE(${rest.code || null}, "code"),
-      "clientId" = COALESCE(${rest.clientId || null}, "clientId"),
-      "clientName" = COALESCE(${rest.clientName || null}, "clientName"),
-      "teamLeadId" = COALESCE(${rest.teamLeadId || null}, "teamLeadId"),
-      "managerId" = COALESCE(${rest.managerId || null}, "managerId"),
-      "defaultBillingRate" = COALESCE(${rest.defaultBillingRate || null}, "defaultBillingRate"),
-      "billingType" = COALESCE(${rest.billingType || null}, "billingType"),
-      "fixedCost" = COALESCE(${rest.fixedCost || null}, "fixedCost"),
-      "startDate" = COALESCE(${rest.startDate || null}, "startDate"),
-      "endDate" = COALESCE(${rest.endDate || null}, "endDate"),
-      "invoiceFileName" = COALESCE(${rest.invoiceFileName || null}, "invoiceFileName"),
-      "description" = COALESCE(${rest.description || null}, "description"),
-      "duration" = COALESCE(${rest.duration || null}, "duration"),
-      "estimatedCost" = COALESCE(${rest.estimatedCost || null}, "estimatedCost"),
-      "status" = COALESCE(${rest.status || null}, "status")
-    WHERE "id" = ${id}
-    RETURNING *
-  `;
-  const project = result[0];
-
-  if (teamMemberIds) {
-    await prisma.$executeRaw`DELETE FROM "_TeamMembers" WHERE "B" = ${id}`;
-    for (const empId of teamMemberIds) {
-      await prisma.$executeRaw`
-        INSERT INTO "_TeamMembers" ("A", "B") VALUES (${empId}, ${id})
-      `;
+  const project = await prisma.project.update({
+    where: { id },
+    data: {
+      ...rest,
+      estimatedCost: budget || rest.estimatedCost,
+      teamMembers: teamMemberIds ? {
+        set: teamMemberIds.map(id => ({ id }))
+      } : undefined
+    },
+    include: {
+      teamMembers: {
+        select: { id: true }
+      }
     }
-  }
-
-  const currentRelations = await prisma.$queryRaw<any[]>`SELECT "A" FROM "_TeamMembers" WHERE "B" = ${id}`;
+  });
 
   return {
     ...project,
     status: project.status as ProjectStatus,
     billingType: project.billingType as "fixed" | "hourly" | undefined,
-    teamMemberIds: currentRelations.map(r => r.A),
+    teamMemberIds: project.teamMembers.map(tm => tm.id),
     defaultBillingRate: project.defaultBillingRate ?? undefined,
     fixedCost: project.fixedCost ?? undefined,
     startDate: project.startDate ?? undefined,
@@ -140,10 +126,7 @@ export async function updateProject(id: number, data: Partial<Project>): Promise
 }
 
 export async function deleteProject(id: number): Promise<void> {
-  // Manual cleanup of many-to-many relationship
-  await prisma.$executeRaw`DELETE FROM "_TeamMembers" WHERE "B" = ${id}`;
-  // Delete the project
-  await prisma.$executeRaw`DELETE FROM "Project" WHERE "id" = ${id}`;
+  await prisma.project.delete({
+    where: { id }
+  });
 }
-
-// initialProjects export removed, use fetchProjectsAction instead
